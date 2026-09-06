@@ -662,7 +662,7 @@ This is the first release since hard-forking from [tuanpmt/esp_wifi_manager](htt
 
 ### Infrastructure & Documentation
 
-- **Documentation site** at [configwifi.com](https://configwifi.com) built with Docusaurus, including AI-friendly `llms.txt`.
+- **Documentation site** at [wificonfig.com](https://wificonfig.com) built with Docusaurus, including AI-friendly `llms.txt`.
 - **GitHub Actions CI** — automated builds for all examples on every push.
 - **ESP Component Registry** publishing via GitHub Actions on release.
 - **PlatformIO Library Registry** support with `library.json`.

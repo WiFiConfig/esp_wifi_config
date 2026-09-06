@@ -11,7 +11,7 @@ import { existsSync } from 'fs';
 
 const DOCS_DIR = new URL('../docs', import.meta.url).pathname;
 const BUILD_DIR = new URL('../build', import.meta.url).pathname;
-const SITE_URL = 'https://configwifi.com';
+const SITE_URL = 'https://wificonfig.com';
 
 // Desired order for concatenation (sidebar order)
 const PAGE_ORDER = [
@@ -137,7 +137,7 @@ async function main() {
 ## Links
 
 - Documentation: ${SITE_URL}/docs
-- GitHub: https://github.com/thorrak/esp_wifi_config
+- GitHub: https://github.com/WiFiConfig/esp_wifi_config
 - ESP Component Registry: https://components.espressif.com/components/thorrak/esp_wifi_config
 - Full AI-readable docs: ${SITE_URL}/llms-full.txt
 
@@ -163,7 +163,7 @@ ${p.body}`;
 > and multiple provisioning interfaces.
 >
 > Website: ${SITE_URL}
-> GitHub: https://github.com/thorrak/esp_wifi_config
+> GitHub: https://github.com/WiFiConfig/esp_wifi_config
 > Component Registry: https://components.espressif.com/components/thorrak/esp_wifi_config
 
 ${sections.join('\n\n')}

@@ -2,7 +2,7 @@
 
 [![Component Registry](https://components.espressif.com/components/thorrak/esp_wifi_config/badge.svg)](https://components.espressif.com/components/thorrak/esp_wifi_config)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docs](https://img.shields.io/badge/docs-configwifi.com-blue)](https://configwifi.com)
+[![Docs](https://img.shields.io/badge/docs-wificonfig.com-blue)](https://wificonfig.com)
 
 WiFi configuration component for ESP-IDF with multi-network support, auto-reconnect, and multiple provisioning interfaces. The library supports four provisioning methods with an optional Serial CLI for debugging:
 
@@ -27,7 +27,7 @@ It's a one-stop shop: enable the channels you want at build time, fill in a `wif
 - **Provisioning lifecycle** — `ON_FAILURE` / `WHEN_UNPROVISIONED` / `MANUAL` start modes, configurable post-connect teardown delay, and three post-provisioning HTTP behaviours
 - **Reboot on successful BLE provisioning** (default on) — sidesteps `wifi_prov_mgr`'s lack of a clean BLE-stack tear-down/rebuild path; opt out via `prov_ble.disable_reboot_on_provisioning_success`
 - **Reconnect-exhaustion policy** — reboot after N failed reconnects, or retry indefinitely
-- **Embedded Web UI** — responsive Preact frontend (~10 KB gzipped) served on the captive portal, or [bring your own](https://configwifi.com/docs/guides/custom-webui)
+- **Embedded Web UI** — responsive Preact frontend (~10 KB gzipped) served on the captive portal, or [bring your own](https://wificonfig.com/docs/guides/custom-webui)
 - **REST API** with optional HTTP Basic Auth
 - **Custom variable store** — application key/value settings flow through every provisioning interface
 - **Event-driven** on ESP-IDF's default event loop under `WIFI_CFG_EVENT` (connected, disconnected, got IP, provisioning started/stopped)
@@ -85,7 +85,7 @@ Espressif's iOS "ESP BLE Provisioning" app hides a setting that is **not auto-ne
 
 The toggle does not adjust itself based on what the device advertises, and the app gives no in-app hint that it exists. A Security 0 device opened from the app while the toggle is in "Secured" mode will simply hang after the device is tapped — no PoP prompt appears and no progress is shown. Set the toggle to match your firmware's `.prov_ble.security` value before pairing.
 
-The interaction between this toggle and Security 1 (PoP) has not been confirmed; see [BLE Provisioning docs](https://configwifi.com/docs/provisioning/ble-gatt#ios-esp-ble-provisioning-app-encrypted-communication-toggle) for details as they become available.
+The interaction between this toggle and Security 1 (PoP) has not been confirmed; see [BLE Provisioning docs](https://wificonfig.com/docs/provisioning/ble-gatt#ios-esp-ble-provisioning-app-encrypted-communication-toggle) for details as they become available.
 
 ### NimBLE reconnect workaround
 
@@ -191,17 +191,17 @@ server come up when no networks are saved or every saved network fails.
 
 ## Documentation
 
-Full documentation is available at **[configwifi.com](https://configwifi.com)**:
+Full documentation is available at **[wificonfig.com](https://wificonfig.com)**:
 
 - [esp_bus Migration](ESP_BUS_MIGRATION.md) — quick reference for apps upgrading off the event bus
-- [Getting Started](https://configwifi.com/docs/getting-started) — Installation and first project
-- [Provisioning Modes](https://configwifi.com/docs/provisioning/modes) — Control when AP/BLE/Improv activate
-- [API Reference](https://configwifi.com/docs/api/c-api) — C API, REST API, BLE protocol, CLI
-- [Examples](https://configwifi.com/docs/examples) — Complete example walkthroughs
+- [Getting Started](https://wificonfig.com/docs/getting-started) — Installation and first project
+- [Provisioning Modes](https://wificonfig.com/docs/provisioning/modes) — Control when AP/BLE/Improv activate
+- [API Reference](https://wificonfig.com/docs/api/c-api) — C API, REST API, BLE protocol, CLI
+- [Examples](https://wificonfig.com/docs/examples) — Complete example walkthroughs
 
 ### AI-Friendly Docs
 
-Point your AI coding assistant at [`configwifi.com/llms.txt`](https://configwifi.com/llms.txt) for machine-readable documentation, or see the [AI Integration Guide](https://configwifi.com/docs/ai-integration-guide) for scenario-based recipes.
+Point your AI coding assistant at [`wificonfig.com/llms.txt`](https://wificonfig.com/llms.txt) for machine-readable documentation, or see the [AI Integration Guide](https://wificonfig.com/docs/ai-integration-guide) for scenario-based recipes.
 
 ## Dependencies
 

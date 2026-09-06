@@ -11,10 +11,10 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://configwifi.com',
+  url: 'https://wificonfig.com',
   baseUrl: '/',
 
-  organizationName: 'thorrak',
+  organizationName: 'WiFiConfig',
   projectName: 'esp_wifi_config',
 
   onBrokenLinks: 'throw',
@@ -31,7 +31,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/thorrak/esp_wifi_config/tree/main/website/',
+            'https://github.com/WiFiConfig/esp_wifi_config/tree/main/website/',
         },
         blog: false, // Disable blog for now
         theme: {
@@ -60,7 +60,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/thorrak/esp_wifi_config',
+          href: 'https://github.com/WiFiConfig/esp_wifi_config',
           label: 'GitHub',
           position: 'right',
         },
@@ -92,7 +92,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/thorrak/esp_wifi_config',
+              href: 'https://github.com/WiFiConfig/esp_wifi_config',
             },
             {
               label: 'ESP Component Registry',

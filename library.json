@@ -5,7 +5,7 @@
   "keywords": "wifi, esp32, esp-idf, captive-portal, softap, ble, provisioning, improv, configuration",
   "repository": {
     "type": "git",
-    "url": "https://github.com/thorrak/esp_wifi_config.git"
+    "url": "https://github.com/WiFiConfig/esp_wifi_config.git"
   },
   "authors": [
     {
@@ -14,7 +14,7 @@
     }
   ],
   "license": "MIT",
-  "homepage": "https://configwifi.com",
+  "homepage": "https://wificonfig.com",
   "frameworks": "espidf",
   "platforms": "espressif32",
   "headers": "esp_wifi_config.h",
