@@ -19,6 +19,18 @@ Improv **Serial** (`CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL`) is independent
 of BLE and remains safe to enable alongside Network Provisioning BLE.
 :::
 
+:::warning Improv Serial and the CLI cannot coexist
+`CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL` depends on
+`CONFIG_WIFI_CFG_ENABLE_CLI` being off. Both want to own the console
+UART — the CLI prints human-readable output via `esp_console` while
+Improv Serial frames binary bytes on the same stream.
+
+If the CLI is enabled, kconfig drops any assignment to
+`CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL` **without a warning**: the build
+succeeds and ships with no serial provisioning. Check the generated
+`sdkconfig` for the symbol rather than assuming your fragment applied.
+:::
+
 ## Enabling Improv
 
 ### Kconfig
@@ -107,7 +119,7 @@ BLE, and cannot — but it will show them the nearby ones.
 Improv BLE requires `CONFIG_BT_ENABLED=y` and a NimBLE or Bluedroid host
 stack. The BLE stack is initialised automatically when Improv BLE is
 enabled — the library does not need any other Kconfig opt-in. See the
-[with_improv example](https://github.com/thorrak/esp_wifi_config/tree/main/examples/with_improv)
+[with_improv example](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_improv)
 for a complete sdkconfig.
 
 If you need the official ESP-IDF provisioning protocol instead of
