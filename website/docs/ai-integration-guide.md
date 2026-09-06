@@ -490,8 +490,8 @@ answer differs:
 | `http.api_base_path` | `"/api/wifi"` | |
 | `http.auth_username` | `"admin"` | Only relevant if `enable_auth = true` |
 | `http.auth_password` | `"admin"` | Only relevant if `enable_auth = true` |
-| `improv.serial_uart_num` | `0` | From `CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM` |
-| `improv.serial_baud_rate` | `115200` | From `CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD` |
+| `improv.serial_uart_num` | `0` | From `CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM` |
+| `improv.serial_baud_rate` | `115200` | From `CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD` |
 | `prov_ble.cleanup_delay_ms` | `1000` | |
 | `prov_ble.reboot_max_wait_ms` | `15000` | |
 | `prov_ble.max_failed_attempts` | `3` | |

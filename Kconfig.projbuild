@@ -197,7 +197,7 @@ menu "WiFi Config"
                 output via esp_console while Improv Serial frames binary
                 bytes on the same stream), so only one can be active.
 
-        config WIFI_MGR_IMPROV_SERIAL_UART_NUM
+        config WIFI_CFG_IMPROV_SERIAL_UART_NUM
             int "Improv Serial UART port number"
             default 0
             depends on WIFI_CFG_ENABLE_IMPROV_SERIAL
@@ -205,7 +205,7 @@ menu "WiFi Config"
                 UART port number used for Improv Serial transport.
                 0 = UART0, 1 = UART1, 2 = UART2.
 
-        config WIFI_MGR_IMPROV_SERIAL_BAUD
+        config WIFI_CFG_IMPROV_SERIAL_BAUD
             int "Improv Serial baud rate"
             default 115200
             depends on WIFI_CFG_ENABLE_IMPROV_SERIAL
