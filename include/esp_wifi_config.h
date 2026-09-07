@@ -821,12 +821,12 @@ typedef void (*wifi_cfg_improv_identify_cb_t)(void);
  * Reference: https://www.improv-wifi.com/
  */
 typedef struct {
-    /// UART port number. 0 → Kconfig CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM
+    /// UART port number. 0 → Kconfig CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM
     /// (itself defaulting to 0 = UART_NUM_0). Because the library treats 0
     /// as "unset", UART_NUM_0 cannot be selected here in preference to a
     /// non-zero Kconfig value — change the Kconfig option instead.
     int serial_uart_num;
-    int serial_baud_rate;                     ///< Baud rate. 0 → Kconfig CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD (default 115200)
+    int serial_baud_rate;                     ///< Baud rate. 0 → Kconfig CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD (default 115200)
     const char *firmware_name;                ///< Reported in Device Info RPC
     const char *firmware_version;             ///< Reported in Device Info RPC
     const char *device_name;                  ///< Reported by the Improv Device-Info RPC (shown in the companion app after connect)
@@ -939,12 +939,12 @@ typedef struct {
 #define CONFIG_WIFI_CFG_RETRY_INTERVAL_MS 5000
 #endif
 
-#ifndef CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM
-#define CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM 0
+#ifndef CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM
+#define CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM 0
 #endif
 
-#ifndef CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD
-#define CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD 115200
+#ifndef CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD
+#define CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD 115200
 #endif
 
 #define WIFI_CFG_DEFAULT_AP_SSID     "ESP32-Config"
@@ -1011,8 +1011,8 @@ typedef struct {
         .auth_password = "admin",                                              \
     },                                                                         \
     .improv = {                                                                \
-        .serial_uart_num  = CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM,            \
-        .serial_baud_rate = CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD,                \
+        .serial_uart_num  = CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM,            \
+        .serial_baud_rate = CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD,                \
     },                                                                         \
     .prov_ble = {                                                              \
         .cleanup_delay_ms    = 1000,                                           \

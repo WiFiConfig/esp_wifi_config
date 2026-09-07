@@ -94,7 +94,7 @@ After a successful connection is lost (post-connect disconnect), the library ret
 Set `max_reconnect_attempts = 0` for infinite retries (never exhausted).
 
 :::caution `WIFI_ON_RECONNECT_EXHAUSTED_PROVISION` is disabled
-The re-enter-provisioning path called `wifi_prov_mgr_start_provisioning()` → `nimble_port_init()`, which fails if the app already owns the BLE stack. The library now logs a warning, resets the counter, and falls through to normal exponential-backoff retry. Use `WIFI_ON_RECONNECT_EXHAUSTED_RESTART` or leave `max_reconnect_attempts = 0` to retry indefinitely. See [MIGRATION.md](https://github.com/thorrak/esp_wifi_config/blob/main/MIGRATION.md).
+The re-enter-provisioning path called `wifi_prov_mgr_start_provisioning()` → `nimble_port_init()`, which fails if the app already owns the BLE stack. The library now logs a warning, resets the counter, and falls through to normal exponential-backoff retry. Use `WIFI_ON_RECONNECT_EXHAUSTED_RESTART` or leave `max_reconnect_attempts = 0` to retry indefinitely. See [MIGRATION.md](https://github.com/WiFiConfig/esp_wifi_config/blob/main/MIGRATION.md).
 :::
 
 ### Counter Semantics

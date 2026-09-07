@@ -7,6 +7,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- **`CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM` and
+  `CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD` are now
+  `CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM` and
+  `CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD`.** These were the last two Kconfig
+  symbols carrying the pre-0.1.0 `WIFI_MGR_` prefix, sitting in a menu whose
+  every other entry — including the `WIFI_CFG_ENABLE_IMPROV_SERIAL` they depend
+  on — already used `WIFI_CFG_`. All symbols now share one prefix.
+
+  The documentation had already moved: `docs/api/kconfig.md` and
+  `docs/provisioning/improv-wifi.md` listed the `WIFI_CFG_` names, which did not
+  exist. Because kconfig only *warns* on an unknown symbol and drops the
+  assignment, anyone who copied that `sdkconfig.defaults` block got a clean
+  build that configured nothing and silently fell back to UART0 at 115200. Those
+  pages are now correct rather than aspirational.
+
+  No deprecation alias: an existing `sdkconfig` or `sdkconfig.defaults` setting
+  the `WIFI_MGR_` names will warn and revert those two settings to their
+  defaults. Rename them, or drop them if UART0 at 115200 was what you wanted.
+
 ## [0.2.3] — 2026-08-29 - The SoftAP portal can be compiled out
 
 ### Added
@@ -641,7 +662,7 @@ This is the first release since hard-forking from [tuanpmt/esp_wifi_manager](htt
 
 ### Infrastructure & Documentation
 
-- **Documentation site** at [configwifi.com](https://configwifi.com) built with Docusaurus, including AI-friendly `llms.txt`.
+- **Documentation site** at [wificonfig.com](https://wificonfig.com) built with Docusaurus, including AI-friendly `llms.txt`.
 - **GitHub Actions CI** — automated builds for all examples on every push.
 - **ESP Component Registry** publishing via GitHub Actions on release.
 - **PlatformIO Library Registry** support with `library.json`.

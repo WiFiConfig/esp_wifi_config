@@ -18,7 +18,7 @@ The `provisioning_mode` field controls when ESP WiFi Config automatically starts
 | `WIFI_PROV_ALWAYS` | 3 | **Disabled** — kept in the API for compatibility but currently treated as `WIFI_PROV_MANUAL` at boot. See note below. |
 
 :::info Numeric values changed in 0.2.0
-`WIFI_PROV_ALWAYS` used to be 0, so a config that omitted `provisioning_mode` silently selected the one mode that does nothing. The working mode is now the zero value. Code that uses the enumerator names only needs a recompile; anything that **stored or transmitted the number** must be migrated — see [MIGRATION.md](https://github.com/thorrak/esp_wifi_config/blob/main/MIGRATION.md).
+`WIFI_PROV_ALWAYS` used to be 0, so a config that omitted `provisioning_mode` silently selected the one mode that does nothing. The working mode is now the zero value. Code that uses the enumerator names only needs a recompile; anything that **stored or transmitted the number** must be migrated — see [MIGRATION.md](https://github.com/WiFiConfig/esp_wifi_config/blob/main/MIGRATION.md).
 :::
 
 :::caution `WIFI_PROV_ALWAYS` is disabled
@@ -86,7 +86,7 @@ After a post-connect disconnect, the library retries up to `max_reconnect_attemp
 These two swapped numeric values in 0.2.0, for the same reason as the provisioning modes above.
 
 :::caution `WIFI_ON_RECONNECT_EXHAUSTED_PROVISION` is disabled
-The re-enter-provisioning path called `wifi_prov_mgr_start_provisioning()` → `nimble_port_init()`, which fails when the application owns the BLE stack. The library now logs a warning and falls through to normal exponential-backoff retry instead. Use `WIFI_ON_RECONNECT_EXHAUSTED_RESTART` or leave `max_reconnect_attempts = 0` for indefinite retry. See [MIGRATION.md](https://github.com/thorrak/esp_wifi_config/blob/main/MIGRATION.md).
+The re-enter-provisioning path called `wifi_prov_mgr_start_provisioning()` → `nimble_port_init()`, which fails when the application owns the BLE stack. The library now logs a warning and falls through to normal exponential-backoff retry instead. Use `WIFI_ON_RECONNECT_EXHAUSTED_RESTART` or leave `max_reconnect_attempts = 0` for indefinite retry. See [MIGRATION.md](https://github.com/WiFiConfig/esp_wifi_config/blob/main/MIGRATION.md).
 :::
 
 ### Reboot After BLE Provisioning

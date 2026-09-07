@@ -115,7 +115,7 @@ endif()
 # esp_wifi_config_prov_ble.c handles the include + symbol rename. The
 # always-on PRIV_REQUIRES declaration above will need
 # `wifi_provisioning` swapped for `network_provisioning` on 6.x — track
-# https://github.com/thorrak/esp_wifi_config/issues for the IDF 6.x
+# https://github.com/WiFiConfig/esp_wifi_config/issues for the IDF 6.x
 # build path.
 
 idf_component_register(

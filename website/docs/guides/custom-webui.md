@@ -123,13 +123,13 @@ The non-negotiable bits are:
 - **Fixed `app.js` / `index.css` output names** — no content hashes,
   since the server has hardcoded handlers for those exact URLs.
 
-The bundled frontend lives at [`frontend/`](https://github.com/thorrak/esp_wifi_config/tree/main/frontend);
+The bundled frontend lives at [`frontend/`](https://github.com/WiFiConfig/esp_wifi_config/tree/main/frontend);
 its `vite.config.ts` is the canonical reference.
 
 ## Deployment: Custom Frontend on LittleFS
 
 A complete worked example lives at
-[`examples/with_webui_customize/`](https://github.com/thorrak/esp_wifi_config/tree/main/examples/with_webui_customize)
+[`examples/with_webui_customize/`](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_webui_customize)
 — this section summarises the moving parts.
 
 ### 1. sdkconfig
@@ -242,7 +242,7 @@ the same server, see [HTTP Server Sharing](./http-server-sharing).
 
 ## Reference Example
 
-The full deployment lives at [`examples/with_webui_customize/`](https://github.com/thorrak/esp_wifi_config/tree/main/examples/with_webui_customize) —
+The full deployment lives at [`examples/with_webui_customize/`](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_webui_customize) —
 it copies the bundled Preact frontend into the example's `www/`
 directory and demonstrates flashing both firmware and LittleFS image
 from a single `idf.py build flash`.

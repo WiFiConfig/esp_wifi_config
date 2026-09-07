@@ -227,8 +227,8 @@ void app_main(void)
         // Inert unless CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL or _BLE is set.
         // NULL means "use the library default". See examples/with_improv.
         .improv = {
-            .serial_uart_num  = CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM,
-            .serial_baud_rate = CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD,
+            .serial_uart_num  = CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM,
+            .serial_baud_rate = CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD,
             .firmware_name    = NULL,   // reported by the Device-Info RPC
             .firmware_version = NULL,
             .device_name      = NULL,   // shown after a client connects

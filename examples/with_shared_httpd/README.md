@@ -42,4 +42,4 @@ example existed no build in CI exercised the configuration — every other
 example leaves `.http.httpd` unset. A trap that only fires in the one
 configuration nothing compiles is a trap that stays.
 
-See also: [Sharing the HTTP Server](https://configwifi.com/docs/guides/http-server-sharing).
+See also: [Sharing the HTTP Server](https://wificonfig.com/docs/guides/http-server-sharing).

@@ -141,7 +141,7 @@ void app_main(void)
     // CONFIG_WIFI_CFG_ENABLE_NETWORK_PROVISIONING=y in sdkconfig; everything
     // else about it lives in this sub-struct. device_name is left at its
     // default, "PROV_{id}".
-    config.prov_ble.security               = WIFI_CFG_PROV_SECURITY_2;
+    config.prov_ble.security               = WIFI_CFG_PROV_SECURITY_1;
     config.prov_ble.pop                    = "abcd1234";
     config.prov_ble.security2_username     = "wificfg";
     config.prov_ble.security2_salt         = sec2_salt;

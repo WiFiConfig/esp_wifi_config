@@ -8,8 +8,8 @@
 # answers, then generate (or edit) the appropriate output files (sdkconfig.defaults,
 # idf_component.yml (if applicable), platformio.ini (if applicable), and the new C++ file scaffold).
 #
-# Full library documentation: https://configwifi.com
-# Full AI integration guide:  https://configwifi.com/docs/ai-integration-guide
+# Full library documentation: https://wificonfig.com
+# Full AI integration guide:  https://wificonfig.com/docs/ai-integration-guide
 
 ================================================================================
 INTERVIEW INSTRUCTIONS

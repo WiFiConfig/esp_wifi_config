@@ -274,8 +274,8 @@ What the macros set:
 | `default_ap.dhcp_start` / `.dhcp_end` | `"192.168.4.2"` / `"192.168.4.20"` |
 | `http.api_base_path` | `"/api/wifi"` |
 | `http.auth_username` / `.auth_password` | `"admin"` / `"admin"` |
-| `improv.serial_uart_num` | `CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM` (0) |
-| `improv.serial_baud_rate` | `CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD` (115200) |
+| `improv.serial_uart_num` | `CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM` (0) |
+| `improv.serial_baud_rate` | `CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD` (115200) |
 | `prov_ble.cleanup_delay_ms` | 1000 |
 | `prov_ble.reboot_max_wait_ms` | 15000 |
 | `prov_ble.max_failed_attempts` | 3 |
