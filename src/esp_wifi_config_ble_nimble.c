@@ -288,15 +288,8 @@ static void nimble_host_task(void *param)
 // Backend Interface Implementation
 // =============================================================================
 
-uint16_t wifi_cfg_ble_backend_get_mtu(void)
-{
-    if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-        return 0;
-    }
-    return ble_att_mtu(s_conn_handle);
-}
-
-bool wifi_cfg_ble_backend_is_stack_running(void)
+/** True if the BLE host stack is already running (app-owned, "service-only" mode). */
+static bool wifi_cfg_ble_backend_is_stack_running(void)
 {
     return esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED;
 }
@@ -398,16 +391,9 @@ esp_err_t wifi_cfg_ble_backend_stop(void)
 
 esp_err_t wifi_cfg_ble_backend_deinit(void)
 {
-    s_advertising_desired = false;
-
-    if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
-        ble_gap_terminate(s_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
-        for (int i = 0; i < 50 && s_conn_handle != BLE_HS_CONN_HANDLE_NONE; i++) {
-            vTaskDelay(pdMS_TO_TICKS(10));
-        }
-    }
-
-    ble_gap_adv_stop();
+    // Stop advertising and drop any active link first; deinit adds the
+    // GATT/stack teardown on top of that.
+    wifi_cfg_ble_backend_stop();
 
     int rc = ble_gatts_reset();
     if (rc != 0) {

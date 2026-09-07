@@ -88,9 +88,6 @@ void wcfg_json_bool     (wcfg_json_w *w, const char *key, bool val);
  */
 esp_err_t wcfg_json_finish(wcfg_json_w *w);
 
-/** Bytes accumulated. Buffer mode only; meaningless while streaming. */
-size_t wcfg_json_len(const wcfg_json_w *w);
-
 #ifdef __cplusplus
 }
 #endif

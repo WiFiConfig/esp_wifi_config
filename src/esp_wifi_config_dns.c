@@ -25,7 +25,6 @@ typedef struct __attribute__((packed)) {
 } dns_header_t;
 
 static int dns_sock = -1;
-static TaskHandle_t dns_task_handle = NULL;
 static bool dns_running = false;
 
 /**
@@ -201,7 +200,7 @@ esp_err_t wifi_cfg_dns_start(void)
     dns_running = true;
 
     // Create DNS server task
-    BaseType_t ret = xTaskCreate(dns_server_task, "dns_srv", WIFI_CFG_TASK_STACK_SIZE, NULL, WIFI_CFG_TASK_PRIORITY, &dns_task_handle);
+    BaseType_t ret = xTaskCreate(dns_server_task, "dns_srv", WIFI_CFG_TASK_STACK_SIZE, NULL, WIFI_CFG_TASK_PRIORITY, NULL);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create DNS task");
         dns_running = false;
@@ -229,10 +228,7 @@ esp_err_t wifi_cfg_dns_stop(void)
     }
 
     // Wait for task to finish
-    if (dns_task_handle) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-        dns_task_handle = NULL;
-    }
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     ESP_LOGI(TAG, "DNS server stopped");
     return ESP_OK;

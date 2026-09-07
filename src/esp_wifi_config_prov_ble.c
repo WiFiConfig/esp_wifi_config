@@ -397,12 +397,12 @@ static esp_err_t version_endpoint(uint32_t session_id, const uint8_t *inbuf, ssi
     cJSON_AddStringToObject(root, "lib", PROV_LIB_VERSION_STRING);
     cJSON_AddStringToObject(root, "idf", IDF_VER);
 
+    // esp_app_get_description() returns the linker-provided descriptor and
+    // never NULL, so no null check is needed here.
     const esp_app_desc_t *app = esp_app_get_description();
-    if (app) {
-        cJSON_AddStringToObject(root, "app", app->project_name);
-        cJSON_AddStringToObject(root, "fw_version", app->version);
-        cJSON_AddStringToObject(root, "compile_time", app->time);
-    }
+    cJSON_AddStringToObject(root, "app", app->project_name);
+    cJSON_AddStringToObject(root, "fw_version", app->version);
+    cJSON_AddStringToObject(root, "compile_time", app->time);
 
     if (g_wifi_cfg && g_wifi_cfg->config.prov_ble.firmware_version) {
         cJSON_AddStringToObject(root, "firmware_version",
@@ -681,6 +681,17 @@ static void on_protocomm_ble_disconnect(void *arg, esp_event_base_t base,
     WIFI_PROV_MGR_STOP();
 }
 
+// Restore balanced Wi-Fi/BT coexistence arbitration if provisioning biased it
+// toward BT (see wifi_cfg_prov_start). No-op when the bias was never applied
+// or has already been restored.
+static void restore_coex(void)
+{
+    if (s_coex_pref_set) {
+        esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
+        s_coex_pref_set = false;
+    }
+}
+
 // =============================================================================
 // Provisioning event handler
 // =============================================================================
@@ -805,10 +816,7 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             // BLE GATT survives concurrent Wi-Fi scans (see wifi_cfg_prov_start).
             // The BLE link is no longer load-bearing here — restore balanced
             // arbitration so post-provisioning Wi-Fi throughput isn't penalised.
-            if (s_coex_pref_set) {
-                esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-                s_coex_pref_set = false;
-            }
+            restore_coex();
             // BLE disconnect workaround: if the manager was torn down because
             // a client dropped mid-flow, re-arm it now that protocomm is
             // fully shut down. Defer to wifi_cfg_task so the heavy MGR_INIT
@@ -865,32 +873,25 @@ esp_err_t wifi_cfg_prov_init(void)
 
 esp_err_t wifi_cfg_prov_deinit(void)
 {
-    // Full library teardown — the app is shutting us down, so the BLE
-    // disconnect workaround must not queue a restart from any in-flight
-    // disconnect event, and the reboot backstop must not fire either.
-    s_explicit_stop   = true;
-    s_restart_pending = false;
-
+    // Full library teardown — the app is shutting us down, so the reboot
+    // backstop must not fire, and the BLE disconnect workaround must not
+    // queue a restart from any in-flight disconnect event (wifi_cfg_prov_stop()
+    // below sets s_explicit_stop and clears s_restart_pending for that).
     if (s_reboot_timer) {
         xTimerStop(s_reboot_timer, 0);
         xTimerDelete(s_reboot_timer, 0);
         s_reboot_timer = NULL;
     }
 
-    if (s_prov_active) {
-        WIFI_PROV_MGR_STOP();
-        s_prov_active = false;
-    }
+    wifi_cfg_prov_stop();
+
     if (s_prov_initialized) {
         WIFI_PROV_MGR_DEINIT();
         s_prov_initialized = false;
     }
     // Force-teardown path: WIFI_PROV_EVT_END may not get a chance to run, so
     // restore coex here too. No-op if already restored by the event handler.
-    if (s_coex_pref_set) {
-        esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-        s_coex_pref_set = false;
-    }
+    restore_coex();
     if (s_disconnect_handler_registered) {
         esp_event_handler_unregister(PROTOCOMM_TRANSPORT_BLE_EVENT,
                                      PROTOCOMM_TRANSPORT_BLE_DISCONNECTED,
@@ -905,11 +906,6 @@ esp_err_t wifi_cfg_prov_deinit(void)
     s_explicit_stop   = false;
     s_restart_count   = 0;
     return ESP_OK;
-}
-
-bool wifi_cfg_prov_is_active(void)
-{
-    return s_prov_active;
 }
 
 esp_err_t wifi_cfg_prov_start(void)
@@ -1057,10 +1053,7 @@ esp_err_t wifi_cfg_prov_start(void)
         ESP_LOGE(TAG, "wifi_prov_mgr_start: %s", esp_err_to_name(err));
         WIFI_PROV_MGR_DEINIT();
         s_prov_initialized = false;
-        if (s_coex_pref_set) {
-            esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);
-            s_coex_pref_set = false;
-        }
+        restore_coex();
         return err;
     }
 
@@ -1130,7 +1123,6 @@ esp_err_t wifi_cfg_prov_init(void)   { return ESP_OK; }
 esp_err_t wifi_cfg_prov_deinit(void) { return ESP_OK; }
 esp_err_t wifi_cfg_prov_start(void)  { return ESP_OK; }
 esp_err_t wifi_cfg_prov_stop(void)   { return ESP_OK; }
-bool      wifi_cfg_prov_is_active(void) { return false; }
 esp_err_t wifi_cfg_prov_validate(const wifi_cfg_prov_config_t *prov) { (void)prov; return ESP_OK; }
 
 #endif

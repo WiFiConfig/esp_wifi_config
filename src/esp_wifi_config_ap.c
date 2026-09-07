@@ -170,17 +170,6 @@ esp_err_t wifi_cfg_ap_reassert(const char *why)
     return wifi_cfg_start_ap(NULL);
 }
 
-// Internal functions called from task
-void wifi_cfg_start_ap_mode(void)
-{
-    wifi_cfg_start_ap(NULL);
-}
-
-void wifi_cfg_stop_ap_mode(void)
-{
-    wifi_cfg_stop_ap();
-}
-
 esp_err_t wifi_cfg_get_ap_status(wifi_ap_status_t *status)
 {
     if (!g_wifi_cfg || !status) return ESP_ERR_INVALID_ARG;

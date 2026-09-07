@@ -162,16 +162,10 @@ typedef enum {
     WM_INT_EVT_STA_DISCONNECTED,    // STA disconnected
     WM_INT_EVT_GOT_IP,              // Got IP address
     WM_INT_EVT_LOST_IP,             // Lost IP
-    WM_INT_EVT_SCAN_COMPLETE,       // Scan finished
     WM_INT_EVT_AP_STARTED,          // AP started
     WM_INT_EVT_AP_STOPPED,          // AP stopped
     WM_INT_EVT_AP_STA_CONN,         // Client connected to AP
-    WM_INT_EVT_CONNECT_REQUEST,     // Manual connect request
-    WM_INT_EVT_DISCONNECT_REQUEST,  // Manual disconnect request
-    WM_INT_EVT_START_AP_REQUEST,    // Manual start AP request
-    WM_INT_EVT_STOP_AP_REQUEST,     // Manual stop AP request
     WM_INT_EVT_TEARDOWN_TIMER,      // Provisioning teardown delay expired
-    WM_INT_EVT_START_PROVISIONING,  // Start provisioning from reconnect exhaustion
     WM_INT_EVT_PROV_BLE_RESTART,    // Restart prov mgr after BLE disconnect (IDF NimBLE workaround)
     WM_INT_EVT_STOP,                // Stop task
 } wifi_cfg_internal_evt_t;
@@ -191,9 +185,6 @@ typedef struct {
         struct {
             esp_netif_ip_info_t ip_info;
         } got_ip;
-        struct {
-            char ssid[32];
-        } connect_req;
         uint8_t mac[6];
     } data;
 } wifi_cfg_internal_msg_t;
@@ -334,14 +325,12 @@ void wifi_cfg_send_event_data(const wifi_cfg_internal_msg_t *event);
 // Start connect sequence (non-blocking, called from task)
 void wifi_cfg_start_connect_sequence(void);
 
-// AP mode control (called from task)
-#if WIFI_CFG_SOFTAP
-void wifi_cfg_start_ap_mode(void);
-void wifi_cfg_stop_ap_mode(void);
-#else
-static inline void wifi_cfg_start_ap_mode(void) { }
-static inline void wifi_cfg_stop_ap_mode(void) { }
-#endif
+// Exponential reconnect backoff, shared by the retry paths in
+// esp_wifi_config.c and esp_wifi_config_network.c.
+uint32_t wifi_cfg_calc_backoff_delay(int retry);
+
+// Human-readable auth mode string (REST /api/scan + CLI `wifi scan`).
+const char *wifi_cfg_auth_str(wifi_auth_mode_t auth);
 
 /**
  * @brief Put the SoftAP back if something else took it down.
@@ -462,7 +451,6 @@ esp_err_t wifi_cfg_prov_init(void);
 esp_err_t wifi_cfg_prov_deinit(void);
 esp_err_t wifi_cfg_prov_start(void);
 esp_err_t wifi_cfg_prov_stop(void);
-bool      wifi_cfg_prov_is_active(void);
 
 // Validate provisioning config before initialization. Called from
 // wifi_cfg_init(). Catches misconfiguration (e.g. Security 2 without
