@@ -14,7 +14,7 @@ protocol. See [MIGRATION.md][migrate] for the protocol-level migration
 plan and the steps for updating downstream client tools.
 :::
 
-[migrate]: https://github.com/thorrak/esp_wifi_config/blob/main/MIGRATION.md
+[migrate]: https://github.com/WiFiConfig/esp_wifi_config/blob/main/MIGRATION.md
 
 ## What runs over BLE now
 

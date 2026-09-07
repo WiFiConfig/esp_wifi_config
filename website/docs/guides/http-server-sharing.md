@@ -83,7 +83,7 @@ Two more things become yours in this flow, both silent when wrong:
   "sign in to network" sheet opens blank.
 
 The library sets both on the server it creates itself; on yours, it cannot.
-[`examples/with_shared_httpd`](https://github.com/thorrak/esp_wifi_config/tree/main/examples/with_shared_httpd)
+[`examples/with_shared_httpd`](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_shared_httpd)
 is this whole flow as a buildable project.
 
 When you pass an existing server:

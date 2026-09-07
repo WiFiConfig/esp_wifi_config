@@ -30,7 +30,7 @@ Clone into your project's `components/` directory:
 
 ```bash
 cd components
-git clone https://github.com/thorrak/esp_wifi_config.git
+git clone https://github.com/WiFiConfig/esp_wifi_config.git
 ```
 
 ## Quick Start

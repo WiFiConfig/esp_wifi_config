@@ -12,7 +12,7 @@ the BLE scheme. This replaces the previous custom JSON-over-GATT service
 (UUID `0xFFE0`) which has been removed — see [MIGRATION.md][migrate] for
 how to update existing client tools.
 
-[migrate]: https://github.com/thorrak/esp_wifi_config/blob/main/MIGRATION.md
+[migrate]: https://github.com/WiFiConfig/esp_wifi_config/blob/main/MIGRATION.md
 
 ## Why Network Provisioning
 

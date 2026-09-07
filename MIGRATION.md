@@ -1081,7 +1081,7 @@ The `esp_bus` component is also now maintained under the new owner.
 
 | Old | New |
 |-----|-----|
-| `github.com/tuanpmt/esp_wifi_manager` | `github.com/thorrak/esp_wifi_config` |
+| `github.com/tuanpmt/esp_wifi_manager` | `github.com/WiFiConfig/esp_wifi_config` |
 
 
 ## Quick Migration
