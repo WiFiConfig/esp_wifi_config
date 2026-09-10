@@ -30,6 +30,7 @@ const PAGE_ORDER = [
   'api/c-api.md',
   'api/rest-api.md',
   'api/ble-protocol.md',
+  'api/ble-wire-protocol.md',
   'api/cli-commands.md',
   'api/kconfig.md',
   'examples.md',

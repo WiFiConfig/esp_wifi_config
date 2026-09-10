@@ -7,6 +7,10 @@ This talks Espressif's standard protocomm protocol (protobuf-over-GATT) with
 security version 0, 1, or 2, plus the `esp-wifi-config-*` JSON endpoints the
 library always registers.
 
+See the [BLE Protocol Reference](../../website/docs/api/ble-protocol.md) for
+endpoint schemas and [BLE Wire Protocol](../../website/docs/api/ble-wire-protocol.md)
+for transport, protobuf, and security implementation details.
+
 The protocomm protocol modules from
 [esp-idf/tools/esp_prov](https://github.com/espressif/esp-idf/tree/release/v5.5/tools/esp_prov)
 are vendored under `./esp_prov/` so the tool is self-contained — no IDF
