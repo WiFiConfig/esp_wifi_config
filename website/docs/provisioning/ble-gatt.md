@@ -81,18 +81,20 @@ wifi_cfg_init(&(wifi_cfg_config_t){
 | `WIFI_PROV_ALWAYS` | **Disabled** — treated as `WIFI_PROV_MANUAL`. See [Provisioning Modes](./modes.md#modes). |
 
 `stop_provisioning_on_connect` and `provisioning_teardown_delay_ms`
-still control the in-place teardown lifecycle for SoftAP and Improv,
-but the BLE channel reboots the device once provisioning completes
-(see [Reboot on successful provisioning](#reboot-on-successful-provisioning)
-below), so the BLE-specific teardown they would otherwise drive is
-bypassed.
+schedule shutdown of the active provisioning interfaces after the station gets
+an IP, including BLE. The provisioning manager applies its `cleanup_delay_ms`
+grace when stopping. Automatic reboot is a separate path, described below;
+clients must finish endpoint reads before either path closes the connection.
+See the [BLE Protocol Reference](../api/ble-protocol.md) for all five library
+JSON endpoints and [BLE Wire Protocol](../api/ble-wire-protocol.md) for client
+implementation details.
 
 ## Reboot on successful provisioning
 
 When the BLE channel is enabled, the device reboots automatically
-once a provisioning session completes. The reboot is **on by default**
-and is not optional in the strict sense — it's how the library avoids
-a class of latent post-handoff BLE bugs.
+after the credential handoff or the success backstop described below. The
+reboot is **on by default** and can be disabled when the application manages
+the BLE/Wi-Fi handoff itself.
 
 ### Why
 
@@ -107,8 +109,9 @@ is reliably consistent.
 
 The reboot fires on whichever happens first:
 
-1. The BLE client disconnecting after `WIFI_PROV_EVT_CRED_RECV` — the
-   well-behaved client path. The library logs `Provisioning complete;
+1. While the provisioning manager is active, the BLE client disconnecting
+   after `WIFI_PROV_EVT_CRED_RECV`. This means credentials were received,
+   **not necessarily that Wi-Fi connected**. The library logs `Provisioning complete;
    client disconnected, rebooting`, waits ~50 ms for the final
    protocomm response to drain, and calls `esp_restart()`.
 2. A backstop timer started on `WIFI_PROV_EVT_CRED_SUCCESS`. Default
@@ -119,8 +122,12 @@ The reboot fires on whichever happens first:
    DHCP, or the device can reboot between two polls and the client
    reports a false failure.
 
-Both paths call `esp_restart()`. The first to fire wins; the second is
-moot because `esp_restart()` does not return.
+Both paths call `esp_restart()`. The first to fire wins. The separate
+teardown-on-connect policy may close BLE sooner than the backstop; 15 seconds
+is not a guaranteed window for endpoint reads. If the link drops before the
+client confirms Connected, report an unconfirmed outcome and verify through
+an application-specific LAN/status check. Do not report success based only
+on a disconnect or disappearance from advertising.
 
 ### Configuration
 
@@ -144,14 +151,14 @@ behaviour.
 ### Implications for application code
 
 - **`prov_ble.on_credentials_success` and the `WIFI_CFG_EVENT_PROV_CRED_SUCCESS`
-  bus event still fire** — the callback runs before the reboot is
+  event still fire** — the callback runs before the reboot is
   scheduled. Anything that must persist needs to land in NVS inside
   that callback. If you need a wider window for the work to complete,
   extend `prov_ble.reboot_max_wait_ms`.
 - **`prov_ble.stop_after_success` is bypassed** while reboot-on-success
-  is active — the reboot supersedes any in-place stop.
-- **`stop_provisioning_on_connect` / `provisioning_teardown_delay_ms`
-  still drive SoftAP and Improv** if they are enabled alongside BLE.
+  is active. This does not bypass the separate teardown-on-connect policy.
+- **`stop_provisioning_on_connect` / `provisioning_teardown_delay_ms`**
+  still drive shutdown of active provisioning interfaces, including BLE.
 - **`disable_reboot_on_provisioning_success = true`** is intended for
   apps that consciously own the BLE/Wi-Fi handoff — e.g., a flow that
   morphs from BLE provisioning into a BLE companion link, or an app
@@ -163,7 +170,7 @@ behaviour.
 
 | Version | Handshake | Setup cost |
 |---------|-----------|-----------|
-| Security 0 | none (plaintext) | none — testing only |
+| Security 0 | one-round session handshake, plaintext | no credentials — testing only |
 | Security 1 | Curve25519 + AES-CTR with PoP | set `prov_ble.pop` (or leave NULL for no-PoP mode) |
 | Security 2 | SRP6a (salted authenticated key exchange) | requires pre-computed `salt` + `verifier` |
 

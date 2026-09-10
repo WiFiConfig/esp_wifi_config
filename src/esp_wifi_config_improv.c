@@ -31,7 +31,6 @@ static improv_error_t s_error = IMPROV_ERROR_NONE;
 #define MAX_STATE_CBS 2
 static struct {
     improv_state_change_cb_t cb;
-    void *ctx;
 } s_state_cbs[MAX_STATE_CBS];
 static int s_state_cb_count = 0;
 
@@ -89,7 +88,7 @@ void wifi_cfg_improv_set_state(improv_state_t state)
 
     for (int i = 0; i < s_state_cb_count; i++) {
         if (s_state_cbs[i].cb) {
-            s_state_cbs[i].cb(s_state, s_error, s_state_cbs[i].ctx);
+            s_state_cbs[i].cb(s_state, s_error);
         }
     }
 }
@@ -99,16 +98,15 @@ void wifi_cfg_improv_set_error(improv_error_t error)
     s_error = error;
     for (int i = 0; i < s_state_cb_count; i++) {
         if (s_state_cbs[i].cb) {
-            s_state_cbs[i].cb(s_state, s_error, s_state_cbs[i].ctx);
+            s_state_cbs[i].cb(s_state, s_error);
         }
     }
 }
 
-void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb, void *ctx)
+void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb)
 {
     if (s_state_cb_count < MAX_STATE_CBS) {
         s_state_cbs[s_state_cb_count].cb = cb;
-        s_state_cbs[s_state_cb_count].ctx = ctx;
         s_state_cb_count++;
     }
 }
@@ -121,7 +119,7 @@ void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb, void *ctx)
  * Build an RPC result packet: [cmd_id, total_len, ...TLV strings...]
  */
 static void send_rpc_result(uint8_t cmd_id, const uint8_t *payload, size_t payload_len,
-                            improv_response_cb_t cb, void *ctx)
+                            improv_response_cb_t cb)
 {
     /*
      * Sized to the format's own ceiling, not one byte under it.
@@ -153,16 +151,15 @@ static void send_rpc_result(uint8_t cmd_id, const uint8_t *payload, size_t paylo
     if (payload_len > 0) {
         memcpy(buf + 2, payload, payload_len);
     }
-    cb(IMPROV_SERIAL_TYPE_RPC_RESULT, buf, 2 + payload_len, ctx);
+    cb(IMPROV_SERIAL_TYPE_RPC_RESULT, buf, 2 + payload_len);
 }
 
 // Pending WiFi settings response callback — used to send the RPC result
 // asynchronously after the connection succeeds or fails.
 static improv_response_cb_t s_pending_wifi_cb = NULL;
-static void *s_pending_wifi_ctx = NULL;
 
 static void handle_send_wifi_settings(const uint8_t *data, size_t len,
-                                      improv_response_cb_t cb, void *ctx)
+                                      improv_response_cb_t cb)
 {
     // Parse: [ssid_len, ssid..., password_len, password...]
     if (len < 1) {
@@ -200,7 +197,6 @@ static void handle_send_wifi_settings(const uint8_t *data, size_t len,
 
     // Store the response callback for async delivery on connect/fail
     s_pending_wifi_cb = cb;
-    s_pending_wifi_ctx = ctx;
 
     // Add network + connect via public API (non-blocking)
     wifi_network_t net = {0};
@@ -218,7 +214,7 @@ static void handle_send_wifi_settings(const uint8_t *data, size_t len,
     // Response is sent from wifi_cfg_improv_on_got_ip / _on_disconnected
 }
 
-static void handle_identify(improv_response_cb_t cb, void *ctx)
+static void handle_identify(improv_response_cb_t cb)
 {
     ESP_LOGI(TAG, "RPC: Identify");
 
@@ -226,10 +222,10 @@ static void handle_identify(improv_response_cb_t cb, void *ctx)
         g_wifi_cfg->config.improv.on_identify();
     }
 
-    send_rpc_result(IMPROV_RPC_IDENTIFY, NULL, 0, cb, ctx);
+    send_rpc_result(IMPROV_RPC_IDENTIFY, NULL, 0, cb);
 }
 
-static void handle_get_device_info(improv_response_cb_t cb, void *ctx)
+static void handle_get_device_info(improv_response_cb_t cb)
 {
     ESP_LOGI(TAG, "RPC: Get Device Info");
 
@@ -271,7 +267,7 @@ static void handle_get_device_info(improv_response_cb_t cb, void *ctx)
     append_tlv_string(payload, sizeof(payload), &poff, chip_variant);
     append_tlv_string(payload, sizeof(payload), &poff, device_name);
 
-    send_rpc_result(IMPROV_RPC_GET_DEVICE_INFO, payload, poff, cb, ctx);
+    send_rpc_result(IMPROV_RPC_GET_DEVICE_INFO, payload, poff, cb);
 }
 
 static const char *auth_mode_str(wifi_auth_mode_t auth)
@@ -290,7 +286,7 @@ static const char *auth_mode_str(wifi_auth_mode_t auth)
     }
 }
 
-static void handle_get_wifi_networks(improv_response_cb_t cb, void *ctx,
+static void handle_get_wifi_networks(improv_response_cb_t cb,
                                      improv_rpc_style_t style, size_t max_payload)
 {
     ESP_LOGI(TAG, "RPC: Get WiFi Networks (scan)");
@@ -354,7 +350,7 @@ static void handle_get_wifi_networks(improv_response_cb_t cb, void *ctx,
             append_tlv_string(payload, cap, &poff, results[i].ssid);
             append_tlv_string(payload, cap, &poff, rssi_str);
             append_tlv_string(payload, cap, &poff, auth_str);
-            send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, poff, cb, ctx);
+            send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, poff, cb);
             sent++;
             continue;
         }
@@ -383,9 +379,9 @@ static void handle_get_wifi_networks(improv_response_cb_t cb, void *ctx,
         /* "The final response (or the first if no networks are found) will
          * have 0 strings in the body." A client cannot otherwise tell the end
          * of the list from a slow radio. */
-        send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, 0, cb, ctx);
+        send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, 0, cb);
     } else {
-        send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, poff, cb, ctx);
+        send_rpc_result(IMPROV_RPC_GET_WIFI_NETWORKS, payload, poff, cb);
     }
 
     free(results);
@@ -396,7 +392,7 @@ static void handle_get_wifi_networks(improv_response_cb_t cb, void *ctx,
 // =============================================================================
 
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
-                                improv_response_cb_t response_cb, void *cb_ctx,
+                                improv_response_cb_t response_cb,
                                 improv_rpc_style_t style, size_t max_payload)
 {
     if (!data || len < 2) {
@@ -419,19 +415,19 @@ void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
 
     switch (cmd_id) {
         case IMPROV_RPC_SEND_WIFI_SETTINGS:
-            handle_send_wifi_settings(cmd_data, data_len, response_cb, cb_ctx);
+            handle_send_wifi_settings(cmd_data, data_len, response_cb);
             break;
 
         case IMPROV_RPC_IDENTIFY:
-            handle_identify(response_cb, cb_ctx);
+            handle_identify(response_cb);
             break;
 
         case IMPROV_RPC_GET_DEVICE_INFO:
-            handle_get_device_info(response_cb, cb_ctx);
+            handle_get_device_info(response_cb);
             break;
 
         case IMPROV_RPC_GET_WIFI_NETWORKS:
-            handle_get_wifi_networks(response_cb, cb_ctx, style, max_payload);
+            handle_get_wifi_networks(response_cb, style, max_payload);
             break;
 
         default:
@@ -463,9 +459,8 @@ void wifi_cfg_improv_on_got_ip(void)
             append_tlv_string(payload, sizeof(payload), &poff, url);
 
             send_rpc_result(IMPROV_RPC_SEND_WIFI_SETTINGS, payload, poff,
-                            s_pending_wifi_cb, s_pending_wifi_ctx);
+                            s_pending_wifi_cb);
             s_pending_wifi_cb = NULL;
-            s_pending_wifi_ctx = NULL;
         }
     }
 }
@@ -478,7 +473,6 @@ void wifi_cfg_improv_on_disconnected(void)
 
         // Clear pending callback — the client gets the error via state notifications
         s_pending_wifi_cb = NULL;
-        s_pending_wifi_ctx = NULL;
     }
 }
 
@@ -588,11 +582,11 @@ improv_error_t wifi_cfg_improv_get_error(void) { return IMPROV_ERROR_NONE; }
 uint8_t wifi_cfg_improv_get_capabilities(void) { return 0; }
 void wifi_cfg_improv_set_state(improv_state_t state) { (void)state; }
 void wifi_cfg_improv_set_error(improv_error_t error) { (void)error; }
-void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb, void *ctx) { (void)cb; (void)ctx; }
+void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb) { (void)cb; }
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
-                                improv_response_cb_t response_cb, void *cb_ctx,
+                                improv_response_cb_t response_cb,
                                 improv_rpc_style_t style, size_t max_payload) {
-    (void)data; (void)len; (void)response_cb; (void)cb_ctx; (void)style;
+    (void)data; (void)len; (void)response_cb; (void)style;
     (void)max_payload;
 }
 

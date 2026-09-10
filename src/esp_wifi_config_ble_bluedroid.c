@@ -143,15 +143,8 @@ static void gatts_dispatch_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 // Backend Interface Implementation
 // =============================================================================
 
-uint16_t wifi_cfg_ble_backend_get_mtu(void)
-{
-    // Bluedroid Improv path uses the per-conn MTU tracked inside the Improv
-    // profile. Returning 23 here is a safe lower bound; chunked Improv
-    // responses query the actual MTU from their own state.
-    return s_connected ? 23 : 0;
-}
-
-bool wifi_cfg_ble_backend_is_stack_running(void)
+/** True if the BLE host stack is already running (app-owned, "service-only" mode). */
+static bool wifi_cfg_ble_backend_is_stack_running(void)
 {
     return esp_bluedroid_get_status() == ESP_BLUEDROID_STATUS_ENABLED;
 }
@@ -210,10 +203,9 @@ esp_err_t wifi_cfg_ble_backend_init(const char *device_name)
     esp_ble_gap_set_device_name(s_device_name);
     esp_ble_gatt_set_local_mtu(517);
 
-    // Push initial adv data — Improv adv start fires after scan-rsp set.
-    improv_svc_data[2] = wifi_cfg_improv_get_state();
-    improv_svc_data[3] = wifi_cfg_improv_get_capabilities();
-    esp_ble_gap_config_adv_data(&adv_data);
+    // Advertising is not armed here — wifi_cfg_ble_backend_start() pushes the
+    // adv data (which kicks off the ADV_DATA_SET -> SCAN_RSP -> ADV_START
+    // chain), matching the NimBLE backend's s_advertising_desired gating.
 
     return ESP_OK;
 }
@@ -243,13 +235,9 @@ esp_err_t wifi_cfg_ble_backend_stop(void)
 
 esp_err_t wifi_cfg_ble_backend_deinit(void)
 {
-    s_advertising_desired = false;
-
-    if (s_connected) {
-        esp_ble_gap_disconnect(s_remote_bda);
-    }
-
-    esp_ble_gap_stop_advertising();
+    // Stop advertising and drop any active link first; deinit adds the
+    // stack teardown on top of that.
+    wifi_cfg_ble_backend_stop();
 
     if (s_ble_stack_owned) {
         esp_bluedroid_disable();

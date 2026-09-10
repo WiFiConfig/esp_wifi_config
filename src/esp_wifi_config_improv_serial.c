@@ -97,11 +97,8 @@ static void serial_send_packet(uint8_t type, const uint8_t *data, size_t len)
     }
 
     // Checksum: sum of ALL preceding bytes (header + version + type + length + data)
-    uint8_t checksum = 0;
-    for (size_t i = 0; i < offset; i++) {
-        checksum += buf[i];
-    }
-    buf[offset++] = checksum;
+    buf[offset] = improv_checksum(buf, offset);
+    offset++;
 
     uart_write_bytes(s_uart_num, buf, offset);
 }
@@ -122,7 +119,7 @@ static void serial_send_error(void)
 // Response callback (from protocol core -> serial TX)
 // =============================================================================
 
-static void serial_response_cb(uint8_t type, const uint8_t *data, size_t len, void *ctx)
+static void serial_response_cb(uint8_t type, const uint8_t *data, size_t len)
 {
     serial_send_packet(type, data, len);
 }
@@ -131,7 +128,7 @@ static void serial_response_cb(uint8_t type, const uint8_t *data, size_t len, vo
 // State change callback
 // =============================================================================
 
-static void serial_state_change_cb(improv_state_t state, improv_error_t error, void *ctx)
+static void serial_state_change_cb(improv_state_t state, improv_error_t error)
 {
     serial_send_state();
     if (error != IMPROV_ERROR_NONE) {
@@ -155,7 +152,10 @@ typedef enum {
 static void serial_rx_task(void *param)
 {
     uint8_t byte;
-    uint8_t rx_buf[IMPROV_SERIAL_BUF_SIZE];
+    /* RX holds the frame's data field only -- not the header, length or
+     * checksum bytes around it -- and that field is described by a one-byte
+     * length, so IMPROV_SERIAL_MAX_DATA is exactly what can arrive. */
+    uint8_t rx_buf[IMPROV_SERIAL_MAX_DATA];
     rx_parse_state_t parse_state = RX_STATE_HEADER;
     size_t header_idx = 0;
     uint8_t pkt_type = 0;
@@ -174,10 +174,8 @@ static void serial_rx_task(void *param)
                     if (header_idx == IMPROV_SERIAL_HEADER_LEN) {
                         header_idx = 0;
                         // Seed checksum with the header bytes we just matched
-                        checksum = 0;
-                        for (int i = 0; i < IMPROV_SERIAL_HEADER_LEN; i++) {
-                            checksum += IMPROV_SERIAL_HEADER[i];
-                        }
+                        checksum = improv_checksum((const uint8_t *)IMPROV_SERIAL_HEADER,
+                                                   IMPROV_SERIAL_HEADER_LEN);
                         parse_state = RX_STATE_VERSION;
                     }
                 } else {
@@ -205,11 +203,11 @@ static void serial_rx_task(void *param)
                 pkt_len = byte;
                 checksum += byte;
                 data_idx = 0;
+                /* No "too large" case: pkt_len is a byte and rx_buf holds
+                 * IMPROV_SERIAL_MAX_DATA of them, so every length the field
+                 * can express fits. */
                 if (pkt_len == 0) {
                     parse_state = RX_STATE_CHECKSUM;
-                } else if (pkt_len > sizeof(rx_buf)) {
-                    ESP_LOGW(TAG, "Packet too large: %d", pkt_len);
-                    parse_state = RX_STATE_HEADER;
                 } else {
                     parse_state = RX_STATE_DATA;
                 }
@@ -239,7 +237,7 @@ static void serial_rx_task(void *param)
                              * near it; passing it anyway keeps the ceiling
                              * stated rather than assumed. */
                             wifi_cfg_improv_handle_rpc(rx_buf, pkt_len,
-                                                       serial_response_cb, NULL,
+                                                       serial_response_cb,
                                                        IMPROV_RPC_STYLE_CHUNKED,
                                                        IMPROV_SERIAL_MAX_DATA - 2);
                             break;
@@ -346,7 +344,7 @@ esp_err_t wifi_cfg_improv_serial_init(void)
     s_uart_num = uart_num;
 
     // Register state-change callback
-    wifi_cfg_improv_register_state_cb(serial_state_change_cb, NULL);
+    wifi_cfg_improv_register_state_cb(serial_state_change_cb);
 
     ESP_LOGI(TAG, "Improv Serial initialized on UART%d @ %d baud", uart_num, baud);
     return ESP_OK;

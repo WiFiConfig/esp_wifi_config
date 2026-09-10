@@ -66,13 +66,16 @@ typedef struct {
 
 static QueueHandle_t s_cmd_queue = NULL;
 static TaskHandle_t  s_cmd_task  = NULL;
-static bool s_started = false;
 
 // Latest RPC result — stored so the client can read the RPC Result
 // characteristic after writing a command (the spec-defined flow).
 // Written by improv_ble_cmd_task, read by the NimBLE host task —
 // volatile ensures cross-task visibility.
-static volatile uint8_t  s_rpc_result[512];
+//
+// Sized to what the core can hand over: an RPC result is a command byte, a
+// length byte and up to IMPROV_RPC_MAX_PAYLOAD of payload, plus the one
+// checksum byte ble_response_cb() appends.
+static volatile uint8_t  s_rpc_result[2 + IMPROV_RPC_MAX_PAYLOAD + 1];
 static volatile uint16_t s_rpc_result_len = 0;
 
 // =============================================================================
@@ -614,7 +617,7 @@ static void bd_notify_rpc_result(const uint8_t *data, size_t len)
 // RPC response callback (protocol core -> BLE notify)
 // =============================================================================
 
-static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len, void *ctx)
+static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len)
 {
     // Improv BLE spec requires an LSB checksum as the final byte of the
     // RPC result.  The protocol core doesn't add one (serial has its own
@@ -622,9 +625,7 @@ static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len, void 
     if (len + 1 > sizeof(s_rpc_result)) return;
 
     memcpy((void *)s_rpc_result, data, len);
-    uint8_t checksum = 0;
-    for (size_t i = 0; i < len; i++) checksum += data[i];
-    s_rpc_result[len] = checksum;
+    s_rpc_result[len] = improv_checksum(data, len);
     s_rpc_result_len = (uint16_t)(len + 1);
 
     // Store the result for characteristic reads (spec-defined flow) and
@@ -641,7 +642,7 @@ static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len, void 
 // State change callback (push state/error notifications)
 // =============================================================================
 
-static void ble_state_change_cb(improv_state_t state, improv_error_t error, void *ctx)
+static void ble_state_change_cb(improv_state_t state, improv_error_t error)
 {
 #if defined(CONFIG_BT_NIMBLE_ENABLED)
     nimble_notify_state();
@@ -686,10 +687,7 @@ static bool improv_ble_frame_valid(const uint8_t *data, size_t len)
         return false;
     }
 
-    uint8_t checksum = 0;
-    for (size_t i = 0; i + 1 < len; i++) {
-        checksum += data[i];
-    }
+    uint8_t checksum = improv_checksum(data, len - 1);
     if (checksum != data[len - 1]) {
         ESP_LOGW(TAG, "RPC command checksum: got 0x%02x, computed 0x%02x",
                  data[len - 1], checksum);
@@ -737,7 +735,7 @@ static void improv_ble_cmd_task(void *param)
             /* BLE spec: one RPC Response holding every network -- as many of
              * them as this connection's MTU leaves room for. */
             wifi_cfg_improv_handle_rpc(msg.data, msg.length, ble_response_cb,
-                                       NULL, IMPROV_RPC_STYLE_SINGLE,
+                                       IMPROV_RPC_STYLE_SINGLE,
                                        improv_ble_max_result_payload());
         } else {
             /* Reported the same way the core reports its own frame errors, so
@@ -769,7 +767,7 @@ esp_err_t wifi_cfg_improv_ble_init(void)
         return ESP_ERR_NO_MEM;
     }
 
-    wifi_cfg_improv_register_state_cb(ble_state_change_cb, NULL);
+    wifi_cfg_improv_register_state_cb(ble_state_change_cb);
 
 #if defined(CONFIG_BT_BLUEDROID_ENABLED)
     // Register Improv GATT app. The GATTS callback is already registered by the
@@ -817,13 +815,11 @@ esp_err_t wifi_cfg_improv_ble_deinit(void)
         s_cmd_queue = NULL;
     }
 
-    s_started = false;
     return ESP_OK;
 }
 
 esp_err_t wifi_cfg_improv_ble_start(void)
 {
-    s_started = true;
     ESP_LOGI(TAG, "Improv BLE started");
     // Advertising is handled by the main BLE backend — Improv service is
     // already registered in the GATT table. The backend's start_advertising()
@@ -833,7 +829,6 @@ esp_err_t wifi_cfg_improv_ble_start(void)
 
 esp_err_t wifi_cfg_improv_ble_stop(void)
 {
-    s_started = false;
     ESP_LOGI(TAG, "Improv BLE stopped");
     return ESP_OK;
 }

@@ -58,16 +58,7 @@ static int cmd_wifi_scan(int argc, char **argv)
     printf("-------------------------------- ------ --------\n");
 
     for (size_t i = 0; i < count; i++) {
-        const char *auth = "UNKNOWN";
-        switch (results[i].auth) {
-            case WIFI_AUTH_OPEN: auth = "OPEN"; break;
-            case WIFI_AUTH_WEP: auth = "WEP"; break;
-            case WIFI_AUTH_WPA_PSK: auth = "WPA"; break;
-            case WIFI_AUTH_WPA2_PSK: auth = "WPA2"; break;
-            case WIFI_AUTH_WPA_WPA2_PSK: auth = "WPA/WPA2"; break;
-            case WIFI_AUTH_WPA3_PSK: auth = "WPA3"; break;
-            default: break;
-        }
+        const char *auth = wifi_cfg_auth_str(results[i].auth);
         printf("%-32s %4d   %s\n", results[i].ssid[0] ? results[i].ssid : "(hidden)",
                results[i].rssi, auth);
     }
@@ -190,52 +181,40 @@ static int cmd_wifi_connect(int argc, char **argv)
     return 0;
 }
 
-static int cmd_wifi_disconnect(int argc, char **argv)
+/**
+ * Report the outcome of a no-argument command: the error name on failure,
+ * @p ok_msg on success, and the console exit code for either.
+ */
+static int cmd_report(esp_err_t ret, const char *ok_msg)
 {
-    esp_err_t ret = wifi_cfg_disconnect();
     if (ret != ESP_OK) {
         printf("Error: %s\n", esp_err_to_name(ret));
         return 1;
     }
 
-    printf("Disconnected\n");
+    printf("%s\n", ok_msg);
     return 0;
+}
+
+static int cmd_wifi_disconnect(int argc, char **argv)
+{
+    return cmd_report(wifi_cfg_disconnect(), "Disconnected");
 }
 
 static int cmd_wifi_ap_start(int argc, char **argv)
 {
-    esp_err_t ret = wifi_cfg_start_ap(NULL);
-    if (ret != ESP_OK) {
-        printf("Error: %s\n", esp_err_to_name(ret));
-        return 1;
-    }
-
-    printf("AP started\n");
-    return 0;
+    return cmd_report(wifi_cfg_start_ap(NULL), "AP started");
 }
 
 static int cmd_wifi_ap_stop(int argc, char **argv)
 {
-    esp_err_t ret = wifi_cfg_stop_ap();
-    if (ret != ESP_OK) {
-        printf("Error: %s\n", esp_err_to_name(ret));
-        return 1;
-    }
-
-    printf("AP stopped\n");
-    return 0;
+    return cmd_report(wifi_cfg_stop_ap(), "AP stopped");
 }
 
 static int cmd_wifi_reset(int argc, char **argv)
 {
-    esp_err_t ret = wifi_cfg_factory_reset();
-    if (ret != ESP_OK) {
-        printf("Error: %s\n", esp_err_to_name(ret));
-        return 1;
-    }
-
-    printf("Factory reset complete. Restart recommended.\n");
-    return 0;
+    return cmd_report(wifi_cfg_factory_reset(),
+                      "Factory reset complete. Restart recommended.");
 }
 
 // wifi var get <key>
@@ -297,135 +276,131 @@ static int cmd_wifi_var_set(int argc, char **argv)
 // Init
 // =============================================================================
 
-esp_err_t wifi_cfg_cli_init(void)
-{
-    ESP_LOGI(TAG, "Registering CLI commands");
-
-    // wifi status
-    esp_console_cmd_t status_cmd = {
+/*
+ * The command table lives in flash, not on wifi_cfg_cli_init()'s stack.
+ *
+ * Every field is a compile-time constant -- the argtable entries are the
+ * addresses of the file-scope arg structs above, which do not move -- so the
+ * whole table is an initialised const object. Registration only reads it.
+ */
+static const esp_console_cmd_t s_cmds[] = {
+    {
         .command = "wifi_status",
         .help = "Show WiFi status",
         .hint = NULL,
         .func = &cmd_wifi_status,
-    };
-    esp_console_cmd_register(&status_cmd);
-
-    // wifi scan
-    esp_console_cmd_t scan_cmd = {
+    },
+    {
         .command = "wifi_scan",
         .help = "Scan for networks",
         .hint = NULL,
         .func = &cmd_wifi_scan,
-    };
-    esp_console_cmd_register(&scan_cmd);
-
-    // wifi list
-    esp_console_cmd_t list_cmd = {
+    },
+    {
         .command = "wifi_list",
         .help = "List saved networks",
         .hint = NULL,
         .func = &cmd_wifi_list,
-    };
-    esp_console_cmd_register(&list_cmd);
+    },
+    {
+        .command = "wifi_add",
+        .help = "Add network: wifi_add <ssid> [password] [-p priority]",
+        .hint = NULL,
+        .func = &cmd_wifi_add,
+        .argtable = &wifi_add_args,
+    },
+    {
+        .command = "wifi_del",
+        .help = "Delete network",
+        .hint = NULL,
+        .func = &cmd_wifi_del,
+        .argtable = &wifi_del_args,
+    },
+    {
+        .command = "wifi_connect",
+        .help = "Connect to network",
+        .hint = NULL,
+        .func = &cmd_wifi_connect,
+        .argtable = &wifi_connect_args,
+    },
+    {
+        .command = "wifi_disconnect",
+        .help = "Disconnect from network",
+        .hint = NULL,
+        .func = &cmd_wifi_disconnect,
+    },
+    {
+        .command = "wifi_ap_start",
+        .help = "Start access point",
+        .hint = NULL,
+        .func = &cmd_wifi_ap_start,
+    },
+    {
+        .command = "wifi_ap_stop",
+        .help = "Stop access point",
+        .hint = NULL,
+        .func = &cmd_wifi_ap_stop,
+    },
+    {
+        .command = "wifi_reset",
+        .help = "Factory reset (clear all saved data)",
+        .hint = NULL,
+        .func = &cmd_wifi_reset,
+    },
+    {
+        .command = "wifi_var_get",
+        .help = "Get variable",
+        .hint = NULL,
+        .func = &cmd_wifi_var_get,
+        .argtable = &wifi_var_get_args,
+    },
+    {
+        .command = "wifi_var_set",
+        .help = "Set variable",
+        .hint = NULL,
+        .func = &cmd_wifi_var_set,
+        .argtable = &wifi_var_set_args,
+    },
+};
+
+esp_err_t wifi_cfg_cli_init(void)
+{
+    ESP_LOGI(TAG, "Registering CLI commands");
+
+    /*
+     * Argtables first, registration second.
+     *
+     * esp_console_cmd_register() walks the argtable to synthesise a hint when
+     * .hint is NULL -- which it is for every command here -- so an argtable
+     * must be populated before its command is registered.
+     */
 
     // wifi add
     wifi_add_args.ssid = arg_str1(NULL, NULL, "<ssid>", "Network SSID");
     wifi_add_args.password = arg_str0(NULL, NULL, "[password]", "Network password");
     wifi_add_args.priority = arg_int0("p", "priority", "<n>", "Priority (default 10)");
     wifi_add_args.end = arg_end(3);
-    esp_console_cmd_t add_cmd = {
-        .command = "wifi_add",
-        .help = "Add network: wifi_add <ssid> [password] [-p priority]",
-        .hint = NULL,
-        .func = &cmd_wifi_add,
-        .argtable = &wifi_add_args,
-    };
-    esp_console_cmd_register(&add_cmd);
 
     // wifi del
     wifi_del_args.ssid = arg_str1(NULL, NULL, "<ssid>", "Network SSID");
     wifi_del_args.end = arg_end(1);
-    esp_console_cmd_t del_cmd = {
-        .command = "wifi_del",
-        .help = "Delete network",
-        .hint = NULL,
-        .func = &cmd_wifi_del,
-        .argtable = &wifi_del_args,
-    };
-    esp_console_cmd_register(&del_cmd);
 
     // wifi connect
     wifi_connect_args.ssid = arg_str0(NULL, NULL, "[ssid]", "Network SSID (auto if omitted)");
     wifi_connect_args.end = arg_end(1);
-    esp_console_cmd_t connect_cmd = {
-        .command = "wifi_connect",
-        .help = "Connect to network",
-        .hint = NULL,
-        .func = &cmd_wifi_connect,
-        .argtable = &wifi_connect_args,
-    };
-    esp_console_cmd_register(&connect_cmd);
-
-    // wifi disconnect
-    esp_console_cmd_t disconnect_cmd = {
-        .command = "wifi_disconnect",
-        .help = "Disconnect from network",
-        .hint = NULL,
-        .func = &cmd_wifi_disconnect,
-    };
-    esp_console_cmd_register(&disconnect_cmd);
-
-    // wifi ap start
-    esp_console_cmd_t ap_start_cmd = {
-        .command = "wifi_ap_start",
-        .help = "Start access point",
-        .hint = NULL,
-        .func = &cmd_wifi_ap_start,
-    };
-    esp_console_cmd_register(&ap_start_cmd);
-
-    // wifi ap stop
-    esp_console_cmd_t ap_stop_cmd = {
-        .command = "wifi_ap_stop",
-        .help = "Stop access point",
-        .hint = NULL,
-        .func = &cmd_wifi_ap_stop,
-    };
-    esp_console_cmd_register(&ap_stop_cmd);
-
-    // wifi reset
-    esp_console_cmd_t reset_cmd = {
-        .command = "wifi_reset",
-        .help = "Factory reset (clear all saved data)",
-        .hint = NULL,
-        .func = &cmd_wifi_reset,
-    };
-    esp_console_cmd_register(&reset_cmd);
 
     // wifi var get
     wifi_var_get_args.key = arg_str1(NULL, NULL, "<key>", "Variable key");
     wifi_var_get_args.end = arg_end(1);
-    esp_console_cmd_t var_get_cmd = {
-        .command = "wifi_var_get",
-        .help = "Get variable",
-        .hint = NULL,
-        .func = &cmd_wifi_var_get,
-        .argtable = &wifi_var_get_args,
-    };
-    esp_console_cmd_register(&var_get_cmd);
 
     // wifi var set
     wifi_var_set_args.key = arg_str1(NULL, NULL, "<key>", "Variable key");
     wifi_var_set_args.value = arg_str1(NULL, NULL, "<value>", "Variable value");
     wifi_var_set_args.end = arg_end(2);
-    esp_console_cmd_t var_set_cmd = {
-        .command = "wifi_var_set",
-        .help = "Set variable",
-        .hint = NULL,
-        .func = &cmd_wifi_var_set,
-        .argtable = &wifi_var_set_args,
-    };
-    esp_console_cmd_register(&var_set_cmd);
+
+    for (size_t i = 0; i < sizeof(s_cmds) / sizeof(s_cmds[0]); i++) {
+        esp_console_cmd_register(&s_cmds[i]);
+    }
 
     return ESP_OK;
 }

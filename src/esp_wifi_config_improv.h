@@ -104,6 +104,26 @@ typedef enum {
       0x72, 0x22, 0x28, 0x62, 0x68, 0x77, 0x46, 0x00 }
 
 // =============================================================================
+// Checksum
+// =============================================================================
+
+/**
+ * @brief Improv's checksum: sum the bytes, keep the low one.
+ *
+ * Both transports use it, over different spans: Serial covers the whole frame
+ * up to the checksum byte, BLE covers the RPC packet up to it. Spec, not
+ * choice -- see improv-wifi.com/serial and /ble.
+ */
+static inline uint8_t improv_checksum(const uint8_t *data, size_t len)
+{
+    uint8_t sum = 0;
+    for (size_t i = 0; i < len; i++) {
+        sum += data[i];
+    }
+    return sum;
+}
+
+// =============================================================================
 // Response Callback
 // =============================================================================
 
@@ -113,9 +133,8 @@ typedef enum {
  * @param type   For Serial: packet type (0x01-0x04). For BLE: ignored (routed by characteristic).
  * @param data   Response payload bytes
  * @param len    Payload length
- * @param ctx    Transport-specific context
  */
-typedef void (*improv_response_cb_t)(uint8_t type, const uint8_t *data, size_t len, void *ctx);
+typedef void (*improv_response_cb_t)(uint8_t type, const uint8_t *data, size_t len);
 
 // =============================================================================
 // Protocol Core API
@@ -162,7 +181,6 @@ typedef enum {
  * @param data          Raw RPC packet: command, length, payload.
  * @param len           Length of @p data.
  * @param response_cb   Called with each result this command produces.
- * @param cb_ctx        Opaque context handed back to @p response_cb.
  * @param style         How this transport wants multi-part results delivered.
  * @param max_payload   Largest result *payload* this transport can deliver in
  *                      one response -- the TLV bytes only, excluding the two
@@ -179,7 +197,7 @@ typedef enum {
  *                      checksummed, and then silently dropped.
  */
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
-                                improv_response_cb_t response_cb, void *cb_ctx,
+                                improv_response_cb_t response_cb,
                                 improv_rpc_style_t style, size_t max_payload);
 
 /**
@@ -213,14 +231,14 @@ void wifi_cfg_improv_set_error(improv_error_t error);
  * Transports register this to be notified when Improv state or error changes
  * so they can push notifications (BLE notify / Serial state packet).
  */
-typedef void (*improv_state_change_cb_t)(improv_state_t state, improv_error_t error, void *ctx);
+typedef void (*improv_state_change_cb_t)(improv_state_t state, improv_error_t error);
 
 /**
  * @brief Register a state-change observer.
  *
  * Multiple observers can be registered (one per transport). Max 2.
  */
-void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb, void *ctx);
+void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb);
 
 // =============================================================================
 // Improv Init / Deinit (called from esp_wifi_config.c)

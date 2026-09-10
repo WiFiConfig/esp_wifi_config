@@ -27,28 +27,9 @@ extern "C" {
 // =============================================================================
 
 /**
- * @brief Get the current negotiated MTU for the active connection.
- *
- * @return Negotiated MTU in bytes, or 0 if not connected
- */
-uint16_t wifi_cfg_ble_backend_get_mtu(void);
-
-/**
- * @brief Check whether the BLE host stack is already running.
- *
- * Used during init to detect whether the application has already initialized
- * the BLE stack. If so, the backend will only register its GATT service
- * ("service-only" mode) and skip full stack teardown on deinit.
- *
- * @return true if the host stack is currently active
- */
-bool wifi_cfg_ble_backend_is_stack_running(void);
-
-/**
  * @brief Initialize the BLE stack backend for Improv.
  *
- * If the host stack is already running (detected via
- * wifi_cfg_ble_backend_is_stack_running()), skips stack initialization and
+ * If the host stack is already running, skips stack initialization and
  * only registers the Improv GATT service. On deinit, only the service will
  * be removed — the host stack will be left running for the application.
  *

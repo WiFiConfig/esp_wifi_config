@@ -35,7 +35,7 @@ static void sort_networks_by_priority(void)
  * @param retry Current retry number (0-based)
  * @return Delay in milliseconds
  */
-static uint32_t calc_backoff_delay(int retry)
+uint32_t wifi_cfg_calc_backoff_delay(int retry)
 {
     uint32_t base = g_wifi_cfg->config.retry_interval_ms;
     uint32_t max_delay = g_wifi_cfg->config.retry_max_interval_ms;
@@ -119,7 +119,7 @@ void wifi_cfg_start_connect_sequence(void)
                      net->ssid, retry + 1, g_wifi_cfg->config.max_retry_per_network);
 
             if (retry < g_wifi_cfg->config.max_retry_per_network - 1) {
-                uint32_t delay = calc_backoff_delay(retry);
+                uint32_t delay = wifi_cfg_calc_backoff_delay(retry);
                 ESP_LOGI(TAG, "Backoff delay: %lu ms", (unsigned long)delay);
                 vTaskDelay(pdMS_TO_TICKS(delay));
             }
@@ -137,12 +137,6 @@ void wifi_cfg_start_connect_sequence(void)
         ESP_LOGI(TAG, "All networks failed, starting provisioning");
         wifi_cfg_start_provisioning();
     }
-}
-
-// Legacy wrapper for backward compatibility
-void wifi_cfg_try_connect(void)
-{
-    wifi_cfg_start_connect_sequence();
 }
 
 // =============================================================================
@@ -404,4 +398,20 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
     
     ESP_LOGI(TAG, "Scan done, found %zu networks", copy_count);
     return ESP_OK;
+}
+
+// Human-readable auth mode, shared by the REST scan endpoint and the CLI
+// `wifi scan` output. These strings are part of the REST API contract (the
+// "auth" field of /api/scan) -- do not reword them.
+const char *wifi_cfg_auth_str(wifi_auth_mode_t auth)
+{
+    switch (auth) {
+        case WIFI_AUTH_OPEN:          return "OPEN";
+        case WIFI_AUTH_WEP:           return "WEP";
+        case WIFI_AUTH_WPA_PSK:       return "WPA";
+        case WIFI_AUTH_WPA2_PSK:      return "WPA2";
+        case WIFI_AUTH_WPA_WPA2_PSK:  return "WPA/WPA2";
+        case WIFI_AUTH_WPA3_PSK:      return "WPA3";
+        default:                      return "UNKNOWN";
+    }
 }

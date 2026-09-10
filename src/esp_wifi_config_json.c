@@ -233,8 +233,3 @@ esp_err_t wcfg_json_finish(wcfg_json_w *w)
     }
     return w->err;
 }
-
-size_t wcfg_json_len(const wcfg_json_w *w)
-{
-    return w->len;
-}

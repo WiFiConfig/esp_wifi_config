@@ -51,27 +51,13 @@ void wifi_cfg_send_event_data(const wifi_cfg_internal_msg_t *event)
 // Helpers
 // =============================================================================
 
-static void set_default_ap_config(wifi_cfg_ap_config_t *ap)
-{
-    strncpy(ap->ssid, WIFI_CFG_DEFAULT_AP_SSID, sizeof(ap->ssid) - 1);
-    strncpy(ap->password, WIFI_CFG_DEFAULT_AP_PASSWORD, sizeof(ap->password) - 1);
-    ap->channel = 0;
-    ap->max_connections = 4;
-    ap->hidden = false;
-    strncpy(ap->ip, WIFI_CFG_DEFAULT_AP_IP, sizeof(ap->ip) - 1);
-    strncpy(ap->netmask, "255.255.255.0", sizeof(ap->netmask) - 1);
-    strncpy(ap->gateway, WIFI_CFG_DEFAULT_AP_IP, sizeof(ap->gateway) - 1);
-    strncpy(ap->dhcp_start, "192.168.4.2", sizeof(ap->dhcp_start) - 1);
-    strncpy(ap->dhcp_end, "192.168.4.20", sizeof(ap->dhcp_end) - 1);
-}
-
 /**
  * @brief Fill any documented per-field AP default the caller or NVS left blank
  *
- * set_default_ap_config() only runs when there is no AP config at all. A
- * caller supplying a partial `default_ap` (say, ssid only), or an NVS blob
- * written before a field existed, would otherwise keep empty strings where
- * the header documents a default.
+ * Runs on every path that produces an AP config. A caller supplying a partial
+ * `default_ap` (say, ssid only), an NVS blob written before a field existed,
+ * or no AP config at all, would otherwise keep empty strings where the header
+ * documents a default.
  */
 static void normalize_ap_config(wifi_cfg_ap_config_t *ap)
 {
@@ -171,7 +157,7 @@ void wifi_cfg_stop_provisioning(void)
 
     // Stop AP if active
     if (g_wifi_cfg->ap_active) {
-        wifi_cfg_stop_ap_mode();
+        wifi_cfg_stop_ap();
     }
 
     // Stop the active BLE provisioning interface
@@ -369,7 +355,11 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
     } else {
         ret = wifi_cfg_nvs_load_ap_config(&g_wifi_cfg->ap_config);
         if (ret != ESP_OK) {
-            set_default_ap_config(&g_wifi_cfg->ap_config);
+            // Nothing was loaded, so the struct is still the calloc'd zeros.
+            // normalize_ap_config() below backfills every other documented
+            // default; `password` is the one field it deliberately leaves.
+            strncpy(g_wifi_cfg->ap_config.password, WIFI_CFG_DEFAULT_AP_PASSWORD,
+                    sizeof(g_wifi_cfg->ap_config.password) - 1);
         }
     }
 
@@ -661,12 +651,11 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                 // working connection and this disconnect is stale.
                 is_current = !(xEventGroupGetBits(g_wifi_cfg->event_group) & WIFI_CONNECTED_BIT);
             }
+            // FAIL_BIT unconditionally, to unblock the connect sequence retry
+            // loop; only the connected bit depends on whose disconnect this is.
+            xEventGroupSetBits(g_wifi_cfg->event_group, WIFI_FAIL_BIT);
             if (is_current) {
-                xEventGroupSetBits(g_wifi_cfg->event_group, WIFI_FAIL_BIT);
                 xEventGroupClearBits(g_wifi_cfg->event_group, WIFI_CONNECTED_BIT);
-            } else {
-                // Still set FAIL_BIT to unblock connect sequence retry loop
-                xEventGroupSetBits(g_wifi_cfg->event_group, WIFI_FAIL_BIT);
             }
             evt.type = WM_INT_EVT_STA_DISCONNECTED;
             strncpy(evt.data.disconnect.ssid, (char *)event->ssid, sizeof(evt.data.disconnect.ssid) - 1);
@@ -678,7 +667,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         case WIFI_EVENT_SCAN_DONE:
             ESP_LOGI(TAG, "Scan done");
             xEventGroupSetBits(g_wifi_cfg->event_group, WIFI_SCAN_DONE_BIT);
-            wifi_cfg_send_event(WM_INT_EVT_SCAN_COMPLETE);
             break;
             
         case WIFI_EVENT_AP_START:
@@ -783,13 +771,6 @@ static void wifi_cfg_task(void *arg)
                             break;
 
                         case WIFI_PROV_ON_FAILURE:
-                            if (g_wifi_cfg->network_count == 0) {
-                                wifi_cfg_start_provisioning();
-                            } else {
-                                wifi_cfg_start_connect_sequence();
-                            }
-                            break;
-
                         case WIFI_PROV_WHEN_UNPROVISIONED:
                             if (g_wifi_cfg->network_count == 0) {
                                 wifi_cfg_start_provisioning();
@@ -815,18 +796,16 @@ static void wifi_cfg_task(void *arg)
                     // backoff would still expire and tear the fresh
                     // association down with another connect sequence.
                     //
-                    // The full cancel set is: STA_CONNECTED, GOT_IP,
-                    // DISCONNECT_REQUEST, and any call to
-                    // wifi_cfg_start_connect_sequence() (which clears the flag
-                    // itself, so WM_INT_EVT_START - posted on
+                    // The full cancel set is: STA_CONNECTED, GOT_IP, and any
+                    // call to wifi_cfg_start_connect_sequence() (which clears
+                    // the flag itself, so WM_INT_EVT_START - posted on
                     // WIFI_EVENT_STA_START - cancels via its own handler).
                     // Nothing else does, on purpose. A message arriving is not
                     // evidence the network is back: STA_DISCONNECTED is what
-                    // put us here, SCAN_COMPLETE can be driven by an HTTP
-                    // client polling /scan, and AP_STARTED / AP_STOPPED /
-                    // AP_STA_CONN are about our own soft-AP. Letting any of
-                    // those shorten the backoff would let an external actor
-                    // collapse it into a busy-loop of connect attempts.
+                    // put us here, and AP_STARTED / AP_STOPPED / AP_STA_CONN
+                    // are about our own soft-AP. Letting any of those shorten
+                    // the backoff would let an external actor collapse it into
+                    // a busy-loop of connect attempts.
                     g_wifi_cfg->reconnect_pending = false;
                     g_wifi_cfg->connect_time = esp_timer_get_time() / 1000;
                     g_wifi_cfg->retry_count = 0;
@@ -903,7 +882,12 @@ static void wifi_cfg_task(void *arg)
                                           "(BLE stack conflict); continuing to retry");
                             g_wifi_cfg->reconnect_attempt_count = 0;
 #if 0
-                            // Original behavior preserved for future re-enable:
+                            // Original behavior preserved for future re-enable.
+                            // Re-enabling this also means restoring
+                            // WM_INT_EVT_START_PROVISIONING to
+                            // wifi_cfg_internal_evt_t and its arm in the task
+                            // switch below -- both were removed as dead code
+                            // once this path was disabled.
                             g_wifi_cfg->retry_count = 0;
                             wifi_cfg_send_event(WM_INT_EVT_START_PROVISIONING);
                             break;
@@ -911,10 +895,7 @@ static void wifi_cfg_task(void *arg)
                         }
 
                         // Normal exponential backoff reconnect
-                        uint32_t base = g_wifi_cfg->config.retry_interval_ms;
-                        uint32_t max_delay = g_wifi_cfg->config.retry_max_interval_ms;
-                        uint32_t delay = base << g_wifi_cfg->retry_count;
-                        if (delay > max_delay || delay < base) delay = max_delay;
+                        uint32_t delay = wifi_cfg_calc_backoff_delay(g_wifi_cfg->retry_count);
 
                         ESP_LOGI(TAG, "Auto-reconnect in %lu ms (attempt %d)",
                                  (unsigned long)delay, g_wifi_cfg->retry_count + 1);
@@ -1019,32 +1000,9 @@ static void wifi_cfg_task(void *arg)
                     wifi_cfg_event_post(WIFI_CFG_EVENT_AP_STA_CONNECTED, evt.data.mac, 6);
                     break;
                     
-                case WM_INT_EVT_CONNECT_REQUEST:
-                    wifi_cfg_connect(evt.data.connect_req.ssid);
-                    break;
-                    
-                case WM_INT_EVT_DISCONNECT_REQUEST:
-                    // A deliberate disconnect outranks a scheduled retry.
-                    g_wifi_cfg->reconnect_pending = false;
-                    wifi_cfg_disconnect();
-                    break;
-                    
-                case WM_INT_EVT_START_AP_REQUEST:
-                    wifi_cfg_start_ap(NULL);
-                    break;
-                    
-                case WM_INT_EVT_STOP_AP_REQUEST:
-                    wifi_cfg_stop_ap();
-                    break;
-
                 case WM_INT_EVT_TEARDOWN_TIMER:
                     ESP_LOGI(TAG, "Teardown timer expired");
                     wifi_cfg_stop_provisioning();
-                    break;
-
-                case WM_INT_EVT_START_PROVISIONING:
-                    ESP_LOGI(TAG, "Starting provisioning from reconnect exhaustion");
-                    wifi_cfg_start_provisioning();
                     break;
 
                 case WM_INT_EVT_PROV_BLE_RESTART:

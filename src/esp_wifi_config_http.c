@@ -331,6 +331,40 @@ static cJSON *read_json_body(httpd_req_t *req)
     return json;
 }
 
+/**
+ * @brief Copy the last '/'-separated segment of the request URI into @p out.
+ *
+ * @p out is zeroed first, so a segment longer than @p cap - 1 comes back
+ * truncated and terminated.
+ *
+ * @return true if a non-empty segment was found.
+ */
+static bool uri_last_segment(httpd_req_t *req, char *out, size_t cap)
+{
+    memset(out, 0, cap);
+
+    const char *last_slash = strrchr(req->uri, '/');
+    if (last_slash && strlen(last_slash) > 1) {
+        strncpy(out, last_slash + 1, cap - 1);
+    }
+
+    return out[0] != '\0';
+}
+
+/**
+ * @brief Overwrite @p dst with a string field, if the object carries one.
+ *
+ * A field that is absent or of another type leaves @p dst as it was, which is
+ * what makes the PUT handlers a partial update rather than a replacement.
+ */
+static void json_copy_str(const cJSON *o, const char *key, char *dst, size_t cap)
+{
+    const cJSON *item = cJSON_GetObjectItem(o, key);
+    if (item && cJSON_IsString(item)) {
+        strncpy(dst, item->valuestring, cap - 1);
+    }
+}
+
 // =============================================================================
 // Handlers
 // =============================================================================
@@ -400,17 +434,7 @@ static esp_err_t handler_get_scan(httpd_req_t *req)
         wcfg_json_str(&w, "ssid", results[i].ssid);
         wcfg_json_int(&w, "rssi", results[i].rssi);
         
-        const char *auth_str = "UNKNOWN";
-        switch (results[i].auth) {
-            case WIFI_AUTH_OPEN: auth_str = "OPEN"; break;
-            case WIFI_AUTH_WEP: auth_str = "WEP"; break;
-            case WIFI_AUTH_WPA_PSK: auth_str = "WPA"; break;
-            case WIFI_AUTH_WPA2_PSK: auth_str = "WPA2"; break;
-            case WIFI_AUTH_WPA_WPA2_PSK: auth_str = "WPA/WPA2"; break;
-            case WIFI_AUTH_WPA3_PSK: auth_str = "WPA3"; break;
-            default: break;
-        }
-        wcfg_json_str(&w, "auth", auth_str);
+        wcfg_json_str(&w, "auth", wifi_cfg_auth_str(results[i].auth));
         wcfg_json_obj_close(&w);
     }
 
@@ -461,19 +485,16 @@ static esp_err_t handler_post_networks(httpd_req_t *req)
     }
     
     cJSON *ssid = cJSON_GetObjectItem(json, "ssid");
-    cJSON *password = cJSON_GetObjectItem(json, "password");
     cJSON *priority = cJSON_GetObjectItem(json, "priority");
-    
+
     if (!cJSON_IsString(ssid)) {
         cJSON_Delete(json);
         return send_error(req, 400, "Missing ssid");
     }
-    
+
     wifi_network_t network = {0};
     strncpy(network.ssid, ssid->valuestring, sizeof(network.ssid) - 1);
-    if (cJSON_IsString(password)) {
-        strncpy(network.password, password->valuestring, sizeof(network.password) - 1);
-    }
+    json_copy_str(json, "password", network.password, sizeof(network.password));
     if (cJSON_IsNumber(priority)) {
         network.priority = (uint8_t)priority->valueint;
     }
@@ -500,17 +521,11 @@ static esp_err_t handler_delete_network(httpd_req_t *req)
     }
     
     // Extract SSID from URI
-    char ssid[32] = {0};
-    const char *uri = req->uri;
-    const char *last_slash = strrchr(uri, '/');
-    if (last_slash && strlen(last_slash) > 1) {
-        strncpy(ssid, last_slash + 1, sizeof(ssid) - 1);
-    }
-    
-    if (!ssid[0]) {
+    char ssid[32];
+    if (!uri_last_segment(req, ssid, sizeof(ssid))) {
         return send_error(req, 400, "Missing ssid");
     }
-    
+
     esp_err_t ret = wifi_cfg_remove_network(ssid);
     if (ret == ESP_ERR_NOT_FOUND) {
         return send_error(req, 404, "Not found");
@@ -527,17 +542,11 @@ static esp_err_t handler_put_network(httpd_req_t *req)
     }
     
     // Extract SSID from URI
-    char ssid[32] = {0};
-    const char *uri = req->uri;
-    const char *last_slash = strrchr(uri, '/');
-    if (last_slash && strlen(last_slash) > 1) {
-        strncpy(ssid, last_slash + 1, sizeof(ssid) - 1);
-    }
-    
-    if (!ssid[0]) {
+    char ssid[32];
+    if (!uri_last_segment(req, ssid, sizeof(ssid))) {
         return send_error(req, 400, "Missing ssid");
     }
-    
+
     cJSON *json = read_json_body(req);
     if (!json) {
         return send_error(req, 400, "Invalid JSON");
@@ -546,12 +555,9 @@ static esp_err_t handler_put_network(httpd_req_t *req)
     wifi_network_t network = {0};
     strncpy(network.ssid, ssid, sizeof(network.ssid) - 1);
     
-    cJSON *password = cJSON_GetObjectItem(json, "password");
     cJSON *priority = cJSON_GetObjectItem(json, "priority");
-    
-    if (cJSON_IsString(password)) {
-        strncpy(network.password, password->valuestring, sizeof(network.password) - 1);
-    }
+
+    json_copy_str(json, "password", network.password, sizeof(network.password));
     if (cJSON_IsNumber(priority)) {
         network.priority = (uint8_t)priority->valueint;
     }
@@ -576,19 +582,17 @@ static esp_err_t handler_post_connect(httpd_req_t *req)
         return ESP_OK;   /* the 401/403 was sent; see send_error() */
     }
     
-    if (req->content_len > 0) {
-        cJSON *json = read_json_body(req);
-        if (json) {
-            cJSON *ssid_item = cJSON_GetObjectItem(json, "ssid");
-            if (cJSON_IsString(ssid_item)) {
-                wifi_cfg_connect(ssid_item->valuestring);
-                cJSON_Delete(json);
-                return send_ok(req);
-            }
+    cJSON *json = read_json_body(req);
+    if (json) {
+        cJSON *ssid_item = cJSON_GetObjectItem(json, "ssid");
+        if (cJSON_IsString(ssid_item)) {
+            wifi_cfg_connect(ssid_item->valuestring);
             cJSON_Delete(json);
+            return send_ok(req);
         }
+        cJSON_Delete(json);
     }
-    
+
     wifi_cfg_connect(NULL);
     return send_ok(req);
 }
@@ -683,13 +687,10 @@ static esp_err_t handler_put_ap_config(httpd_req_t *req)
     wifi_cfg_ap_config_t config;
     wifi_cfg_get_ap_config(&config);
     
+    json_copy_str(json, "ssid", config.ssid, sizeof(config.ssid));
+    json_copy_str(json, "password", config.password, sizeof(config.password));
+
     cJSON *item;
-    if ((item = cJSON_GetObjectItem(json, "ssid")) && cJSON_IsString(item)) {
-        strncpy(config.ssid, item->valuestring, sizeof(config.ssid) - 1);
-    }
-    if ((item = cJSON_GetObjectItem(json, "password")) && cJSON_IsString(item)) {
-        strncpy(config.password, item->valuestring, sizeof(config.password) - 1);
-    }
     if ((item = cJSON_GetObjectItem(json, "channel")) && cJSON_IsNumber(item)) {
         config.channel = (uint8_t)item->valueint;
     }
@@ -699,22 +700,12 @@ static esp_err_t handler_put_ap_config(httpd_req_t *req)
     if ((item = cJSON_GetObjectItem(json, "hidden")) && cJSON_IsBool(item)) {
         config.hidden = cJSON_IsTrue(item);
     }
-    if ((item = cJSON_GetObjectItem(json, "ip")) && cJSON_IsString(item)) {
-        strncpy(config.ip, item->valuestring, sizeof(config.ip) - 1);
-    }
-    if ((item = cJSON_GetObjectItem(json, "netmask")) && cJSON_IsString(item)) {
-        strncpy(config.netmask, item->valuestring, sizeof(config.netmask) - 1);
-    }
-    if ((item = cJSON_GetObjectItem(json, "gateway")) && cJSON_IsString(item)) {
-        strncpy(config.gateway, item->valuestring, sizeof(config.gateway) - 1);
-    }
-    if ((item = cJSON_GetObjectItem(json, "dhcp_start")) && cJSON_IsString(item)) {
-        strncpy(config.dhcp_start, item->valuestring, sizeof(config.dhcp_start) - 1);
-    }
-    if ((item = cJSON_GetObjectItem(json, "dhcp_end")) && cJSON_IsString(item)) {
-        strncpy(config.dhcp_end, item->valuestring, sizeof(config.dhcp_end) - 1);
-    }
-    
+    json_copy_str(json, "ip", config.ip, sizeof(config.ip));
+    json_copy_str(json, "netmask", config.netmask, sizeof(config.netmask));
+    json_copy_str(json, "gateway", config.gateway, sizeof(config.gateway));
+    json_copy_str(json, "dhcp_start", config.dhcp_start, sizeof(config.dhcp_start));
+    json_copy_str(json, "dhcp_end", config.dhcp_end, sizeof(config.dhcp_end));
+
     cJSON_Delete(json);
     
     wifi_cfg_set_ap_config(&config);
@@ -731,23 +722,17 @@ static esp_err_t handler_post_ap_start(httpd_req_t *req)
     wifi_cfg_ap_config_t *config = NULL;
     wifi_cfg_ap_config_t temp_config;
     
-    if (req->content_len > 0) {
-        cJSON *json = read_json_body(req);
-        if (json) {
-            wifi_cfg_get_ap_config(&temp_config);
-            
-            cJSON *item;
-            if ((item = cJSON_GetObjectItem(json, "ssid")) && cJSON_IsString(item)) {
-                strncpy(temp_config.ssid, item->valuestring, sizeof(temp_config.ssid) - 1);
-            }
-            if ((item = cJSON_GetObjectItem(json, "password")) && cJSON_IsString(item)) {
-                strncpy(temp_config.password, item->valuestring, sizeof(temp_config.password) - 1);
-            }
-            cJSON_Delete(json);
-            config = &temp_config;
-        }
+    cJSON *json = read_json_body(req);
+    if (json) {
+        wifi_cfg_get_ap_config(&temp_config);
+
+        json_copy_str(json, "ssid", temp_config.ssid, sizeof(temp_config.ssid));
+        json_copy_str(json, "password", temp_config.password, sizeof(temp_config.password));
+
+        cJSON_Delete(json);
+        config = &temp_config;
     }
-    
+
     wifi_cfg_start_ap(config);
     return send_ok(req);
 }
@@ -821,17 +806,11 @@ static esp_err_t handler_put_var(httpd_req_t *req)
     }
     
     // Extract key from URI
-    char key[32] = {0};
-    const char *uri = req->uri;
-    const char *last_slash = strrchr(uri, '/');
-    if (last_slash && strlen(last_slash) > 1) {
-        strncpy(key, last_slash + 1, sizeof(key) - 1);
-    }
-    
-    if (!key[0]) {
+    char key[32];
+    if (!uri_last_segment(req, key, sizeof(key))) {
         return send_error(req, 400, "Missing key");
     }
-    
+
     cJSON *json = read_json_body(req);
     if (!json) {
         return send_error(req, 400, "Invalid JSON");
@@ -861,14 +840,8 @@ static esp_err_t handler_delete_var(httpd_req_t *req)
     }
 
     // Extract key from URI
-    char key[32] = {0};
-    const char *uri = req->uri;
-    const char *last_slash = strrchr(uri, '/');
-    if (last_slash && strlen(last_slash) > 1) {
-        strncpy(key, last_slash + 1, sizeof(key) - 1);
-    }
-
-    if (!key[0]) {
+    char key[32];
+    if (!uri_last_segment(req, key, sizeof(key))) {
         return send_error(req, 400, "Missing key");
     }
 
@@ -1024,20 +997,60 @@ static esp_err_t handler_captive_detect(httpd_req_t *req)
 // =============================================================================
 
 // Static URI strings (must persist after function returns)
-static char uri_status[64];
-static char uri_scan[64];
-static char uri_networks[64];
-static char uri_networks_wildcard[64];
-static char uri_connect[64];
-static char uri_disconnect[64];
-static char uri_ap_status[64];
-static char uri_ap_config[64];
-static char uri_ap_start[64];
-static char uri_ap_stop[64];
-static char uri_vars[64];
-static char uri_vars_wildcard[64];
-static char uri_factory_reset[64];
-static char uri_options_wildcard[64];
+enum {
+    URI_STATUS,
+    URI_SCAN,
+    URI_NETWORKS,
+    URI_NETWORKS_WILDCARD,
+    URI_CONNECT,
+    URI_DISCONNECT,
+    URI_AP_STATUS,
+    URI_AP_CONFIG,
+    URI_AP_START,
+    URI_AP_STOP,
+    URI_VARS,
+    URI_VARS_WILDCARD,
+    URI_FACTORY_RESET,
+    URI_OPTIONS_WILDCARD,
+    URI_SLOT_COUNT
+};
+static char uri_slots[URI_SLOT_COUNT][64];
+
+/* The API's routes, in registration order.
+ *
+ * esp_http_server matches in registration order, so this table *is* the
+ * dispatch precedence: the wildcards have to stay behind the exact paths that
+ * share their prefix, and the catch-all OPTIONS route has to stay last.
+ *
+ * Several routes share a URI and differ only in method, so `slot` -- not the
+ * row index -- names the buffer the path is built into. Registration and
+ * unregistration both walk this table, which is what keeps them in step. */
+static const struct {
+    uint8_t slot;
+    const char *suffix;
+    httpd_method_t method;
+    esp_err_t (*handler)(httpd_req_t *r);
+} api_routes[] = {
+    { URI_STATUS,            "/status",         HTTP_GET,     handler_get_status         },
+    { URI_SCAN,              "/scan",           HTTP_GET,     handler_get_scan           },
+    { URI_NETWORKS,          "/networks",       HTTP_GET,     handler_get_networks       },
+    { URI_NETWORKS,          "/networks",       HTTP_POST,    handler_post_networks      },
+    { URI_NETWORKS_WILDCARD, "/networks/*",     HTTP_PUT,     handler_put_network        },
+    { URI_NETWORKS_WILDCARD, "/networks/*",     HTTP_DELETE,  handler_delete_network     },
+    { URI_CONNECT,           "/connect",        HTTP_POST,    handler_post_connect       },
+    { URI_DISCONNECT,        "/disconnect",     HTTP_POST,    handler_post_disconnect    },
+    { URI_AP_STATUS,         "/ap/status",      HTTP_GET,     handler_get_ap_status      },
+    { URI_AP_CONFIG,         "/ap/config",      HTTP_GET,     handler_get_ap_config      },
+    { URI_AP_CONFIG,         "/ap/config",      HTTP_PUT,     handler_put_ap_config      },
+    { URI_AP_START,          "/ap/start",       HTTP_POST,    handler_post_ap_start      },
+    { URI_AP_STOP,           "/ap/stop",        HTTP_POST,    handler_post_ap_stop       },
+    { URI_VARS,              "/vars",           HTTP_GET,     handler_get_vars           },
+    { URI_VARS_WILDCARD,     "/vars/*",         HTTP_PUT,     handler_put_var            },
+    { URI_VARS_WILDCARD,     "/vars/*",         HTTP_DELETE,  handler_delete_var         },
+    { URI_FACTORY_RESET,     "/factory_reset",  HTTP_POST,    handler_post_factory_reset },
+    /* OPTIONS catch-all for CORS preflight -- must stay last. */
+    { URI_OPTIONS_WILDCARD,  "/*",              HTTP_OPTIONS, handler_options            },
+};
 
 // =============================================================================
 // Register API-only handlers (persist after provisioning stops)
@@ -1078,78 +1091,17 @@ esp_err_t wifi_cfg_http_register_api_handlers(void)
     const char *base = g_wifi_cfg->config.http.api_base_path;
     if (!base) base = "/api/wifi";
 
-    // Status
-    snprintf(uri_status, sizeof(uri_status), "%s/status", base);
-    httpd_uri_t status_uri = { .uri = uri_status, .method = HTTP_GET, .handler = handler_get_status };
-    register_uri(&status_uri);
+    for (size_t i = 0; i < sizeof(api_routes) / sizeof(api_routes[0]); i++) {
+        char *uri = uri_slots[api_routes[i].slot];
+        snprintf(uri, sizeof(uri_slots[0]), "%s%s", base, api_routes[i].suffix);
 
-    // Scan
-    snprintf(uri_scan, sizeof(uri_scan), "%s/scan", base);
-    httpd_uri_t scan_uri = { .uri = uri_scan, .method = HTTP_GET, .handler = handler_get_scan };
-    register_uri(&scan_uri);
-
-    // Networks
-    snprintf(uri_networks, sizeof(uri_networks), "%s/networks", base);
-    httpd_uri_t networks_get_uri = { .uri = uri_networks, .method = HTTP_GET, .handler = handler_get_networks };
-    httpd_uri_t networks_post_uri = { .uri = uri_networks, .method = HTTP_POST, .handler = handler_post_networks };
-    register_uri(&networks_get_uri);
-    register_uri(&networks_post_uri);
-
-    // Update/Delete network - wildcard
-    snprintf(uri_networks_wildcard, sizeof(uri_networks_wildcard), "%s/networks/*", base);
-    httpd_uri_t networks_put_uri = { .uri = uri_networks_wildcard, .method = HTTP_PUT, .handler = handler_put_network };
-    httpd_uri_t networks_del_uri = { .uri = uri_networks_wildcard, .method = HTTP_DELETE, .handler = handler_delete_network };
-    register_uri(&networks_put_uri);
-    register_uri(&networks_del_uri);
-
-    // Connect/Disconnect
-    snprintf(uri_connect, sizeof(uri_connect), "%s/connect", base);
-    httpd_uri_t connect_uri = { .uri = uri_connect, .method = HTTP_POST, .handler = handler_post_connect };
-    register_uri(&connect_uri);
-
-    snprintf(uri_disconnect, sizeof(uri_disconnect), "%s/disconnect", base);
-    httpd_uri_t disconnect_uri = { .uri = uri_disconnect, .method = HTTP_POST, .handler = handler_post_disconnect };
-    register_uri(&disconnect_uri);
-
-    // AP
-    snprintf(uri_ap_status, sizeof(uri_ap_status), "%s/ap/status", base);
-    httpd_uri_t ap_status_uri = { .uri = uri_ap_status, .method = HTTP_GET, .handler = handler_get_ap_status };
-    register_uri(&ap_status_uri);
-
-    snprintf(uri_ap_config, sizeof(uri_ap_config), "%s/ap/config", base);
-    httpd_uri_t ap_config_get_uri = { .uri = uri_ap_config, .method = HTTP_GET, .handler = handler_get_ap_config };
-    httpd_uri_t ap_config_put_uri = { .uri = uri_ap_config, .method = HTTP_PUT, .handler = handler_put_ap_config };
-    register_uri(&ap_config_get_uri);
-    register_uri(&ap_config_put_uri);
-
-    snprintf(uri_ap_start, sizeof(uri_ap_start), "%s/ap/start", base);
-    httpd_uri_t ap_start_uri = { .uri = uri_ap_start, .method = HTTP_POST, .handler = handler_post_ap_start };
-    register_uri(&ap_start_uri);
-
-    snprintf(uri_ap_stop, sizeof(uri_ap_stop), "%s/ap/stop", base);
-    httpd_uri_t ap_stop_uri = { .uri = uri_ap_stop, .method = HTTP_POST, .handler = handler_post_ap_stop };
-    register_uri(&ap_stop_uri);
-
-    // Vars
-    snprintf(uri_vars, sizeof(uri_vars), "%s/vars", base);
-    httpd_uri_t vars_uri = { .uri = uri_vars, .method = HTTP_GET, .handler = handler_get_vars };
-    register_uri(&vars_uri);
-
-    snprintf(uri_vars_wildcard, sizeof(uri_vars_wildcard), "%s/vars/*", base);
-    httpd_uri_t vars_put_uri = { .uri = uri_vars_wildcard, .method = HTTP_PUT, .handler = handler_put_var };
-    httpd_uri_t vars_del_uri = { .uri = uri_vars_wildcard, .method = HTTP_DELETE, .handler = handler_delete_var };
-    register_uri(&vars_put_uri);
-    register_uri(&vars_del_uri);
-
-    // Factory reset
-    snprintf(uri_factory_reset, sizeof(uri_factory_reset), "%s/factory_reset", base);
-    httpd_uri_t factory_reset_uri = { .uri = uri_factory_reset, .method = HTTP_POST, .handler = handler_post_factory_reset };
-    register_uri(&factory_reset_uri);
-
-    // OPTIONS handler for CORS preflight (catch-all)
-    snprintf(uri_options_wildcard, sizeof(uri_options_wildcard), "%s/*", base);
-    httpd_uri_t options_uri = { .uri = uri_options_wildcard, .method = HTTP_OPTIONS, .handler = handler_options };
-    register_uri(&options_uri);
+        httpd_uri_t handler_uri = {
+            .uri = uri,
+            .method = api_routes[i].method,
+            .handler = api_routes[i].handler,
+        };
+        register_uri(&handler_uri);
+    }
 
     g_wifi_cfg->http_handlers_registered = true;
 
@@ -1175,24 +1127,10 @@ static esp_err_t wifi_cfg_http_unregister_api_handlers(void)
 
     httpd_handle_t httpd = g_wifi_cfg->httpd;
 
-    httpd_unregister_uri_handler(httpd, uri_status, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_scan, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_networks, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_networks, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_networks_wildcard, HTTP_PUT);
-    httpd_unregister_uri_handler(httpd, uri_networks_wildcard, HTTP_DELETE);
-    httpd_unregister_uri_handler(httpd, uri_connect, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_disconnect, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_ap_status, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_ap_config, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_ap_config, HTTP_PUT);
-    httpd_unregister_uri_handler(httpd, uri_ap_start, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_ap_stop, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_vars, HTTP_GET);
-    httpd_unregister_uri_handler(httpd, uri_vars_wildcard, HTTP_PUT);
-    httpd_unregister_uri_handler(httpd, uri_vars_wildcard, HTTP_DELETE);
-    httpd_unregister_uri_handler(httpd, uri_factory_reset, HTTP_POST);
-    httpd_unregister_uri_handler(httpd, uri_options_wildcard, HTTP_OPTIONS);
+    for (size_t i = 0; i < sizeof(api_routes) / sizeof(api_routes[0]); i++) {
+        httpd_unregister_uri_handler(httpd, uri_slots[api_routes[i].slot],
+                                     api_routes[i].method);
+    }
 
     g_wifi_cfg->http_handlers_registered = false;
     ESP_LOGI(TAG, "API handlers unregistered");
@@ -1247,12 +1185,14 @@ esp_err_t wifi_cfg_http_unregister_provisioning_handlers(void)
     // Unregister Web UI or simple page
 #ifdef CONFIG_WIFI_CFG_ENABLE_WEBUI
     httpd_unregister_uri_handler(httpd, "/", HTTP_GET);
-    httpd_unregister_uri_handler(httpd, "/assets/app.js", HTTP_GET);
-    httpd_unregister_uri_handler(httpd, "/assets/index.css", HTTP_GET);
-    // Wildcard handler for additional static files (only if custom path)
-#ifdef CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH
+    /* No unregister for /assets/app.js or /assets/index.css: those are rows in
+     * webui.c's embedded_assets[] table, served by the wildcard handler below,
+     * never registered as URI handlers of their own. */
+    /* Wildcard handler for additional static files. Unconditional, because
+     * wifi_cfg_webui_init() registers it unconditionally: the guard that used
+     * to be here was on CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH, a Kconfig `string`
+     * with `default ""` that is always defined once the Web UI is on. */
     httpd_unregister_uri_handler(httpd, "/*", HTTP_GET);
-#endif
 #else
     httpd_unregister_uri_handler(httpd, "/", HTTP_GET);
 #endif

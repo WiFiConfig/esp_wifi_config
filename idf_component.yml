@@ -1,4 +1,4 @@
-version: "0.2.3"
+version: "0.2.4"
 description: WiFi Config component with multi-network support, auto-reconnect, SoftAP captive portal, REST API, and ESP-IDF Network Provisioning over BLE
 url: https://github.com/WiFiConfig/esp_wifi_config
 repository: https://github.com/WiFiConfig/esp_wifi_config.git

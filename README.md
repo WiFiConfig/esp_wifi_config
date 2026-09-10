@@ -57,6 +57,10 @@ Because the BLE channel uses **Espressif's `wifi_provisioning` component** as it
 - **Security 1 (PoP)** and **Security 2 (SRP6a)** handshakes are both supported. Set `prov_ble.pop` (Security 1) or `prov_ble.security2_salt` / `prov_ble.security2_verifier` (Security 2) in your `wifi_cfg_init()` call — the example uses `"abcd1234"` so Espressif's apps pair out of the box.
 - The standard `prov-config` / `prov-scan` endpoints behave exactly as Espressif's clients expect.
 
+See the [BLE Protocol Reference](website/docs/api/ble-protocol.md) for the five
+library JSON extensions, and [BLE Wire Protocol](website/docs/api/ble-wire-protocol.md)
+for transport, protobuf, and security implementation details.
+
 What `wifi_provisioning` does on its own is hand a single set of credentials to `esp_wifi` once, over BLE (or SoftAP). It has no opinion about what happens before, after, or alongside that handoff. This library wraps `wifi_provisioning` for the BLE handshake and adds everything else:
 
 | | Espressif `wifi_provisioning` alone | This library |
@@ -116,7 +120,7 @@ Espressif's `wifi_provisioning` component does not expose a clean way to tear do
 
 The reboot fires on whichever happens first:
 
-1. The BLE client disconnecting after `WIFI_PROV_EVT_CRED_RECV` (the well-behaved-client path).
+1. While the provisioning manager is active, the BLE client disconnecting after `WIFI_PROV_EVT_CRED_RECV`. Credentials have been received at this point; Wi-Fi connection is not necessarily confirmed.
 2. A backstop timer set on `WIFI_PROV_EVT_CRED_SUCCESS` — default 15000 ms, configurable via `prov_ble.reboot_max_wait_ms`.
 
 Defaults are designed so most apps need no extra configuration. The relevant fields on `wifi_cfg_prov_config_t`:
@@ -137,7 +141,12 @@ reports a false failure.
 
 If your application does significant work in the `WIFI_CFG_EVENT_PROV_CRED_SUCCESS` handler, finish that work before the callback returns (it runs before the reboot) — or extend `reboot_max_wait_ms`. Anything that must persist across the reboot needs to land in NVS first.
 
-The library's pre-existing `stop_provisioning_on_connect` / `provisioning_teardown_delay_ms` lifecycle and `prov_ble.stop_after_success` knob still exist but are bypassed while reboot-on-success is active — the reboot supersedes any in-place teardown.
+`prov_ble.stop_after_success` is bypassed while reboot-on-success is active.
+The separate `stop_provisioning_on_connect` / `provisioning_teardown_delay_ms`
+lifecycle still schedules interface shutdown after the station gets an IP,
+including BLE, so the backstop does not guarantee 15 seconds of endpoint access.
+If BLE drops before a client confirms Connected, the outcome is unconfirmed;
+verify through an application-specific LAN/status check before reporting success.
 
 ## Quick Start
 

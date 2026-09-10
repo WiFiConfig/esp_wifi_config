@@ -7,7 +7,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-09-10 - Internal cleanup and BLE protocol reference
+
 ### Changed
+
+- **Consolidated repeated internal code and removed unused paths.** HTTP
+  registration and teardown share one route table; NVS blob loading/saving,
+  Improv checksums, backoff calculation, CLI registration, and BLE teardown
+  reuse common helpers. Unreachable manager-task messages and unused internal
+  functions are removed, and Improv buffers are sized to their maximum frames.
+  The public C API, provisioning packet formats, and stored NVS layout are
+  unchanged.
+- **The `with_ble` example now selects Security 1** with its configured
+  `abcd1234` proof of possession. Applications can still select Security 2
+  with a salt and verifier.
+- **Project links now use the `WiFiConfig` GitHub organization and
+  `wificonfig.com` documentation domain.**
 
 - **`CONFIG_WIFI_MGR_IMPROV_SERIAL_UART_NUM` and
   `CONFIG_WIFI_MGR_IMPROV_SERIAL_BAUD` are now
@@ -27,6 +42,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   No deprecation alias: an existing `sdkconfig` or `sdkconfig.defaults` setting
   the `WIFI_MGR_` names will warn and revert those two settings to their
   defaults. Rename them, or drop them if UART0 at 115200 was what you wanted.
+
+### Fixed
+
+- **Bluedroid Improv BLE advertising starts when provisioning starts.**
+  Backend initialization no longer configures advertising data and starts
+  advertising early; it now follows the explicit start path, matching NimBLE.
+- **The BLE `esp-wifi-config-version` endpoint reports library version
+  `0.2.4`.** Its `lib` field previously contained a stale `0.1.0` string even
+  when the package manifests identified a newer release.
+- **The JSON writer test runner terminates the process it starts on timeout.**
+  It previously killed a wrapper shell and could leave a sanitizer probe or
+  differential test running. Both probes and the differential test are now
+  bounded without orphaning that child process.
+
+### Documentation
+
+- **Integrated the standalone Bluetooth specification into the documentation.**
+  The BLE Wire Protocol page consolidates transport, protobuf, security, and
+  Python guidance checked against ESP-IDF 5.4.3 and the library source. It
+  corrects SSID byte limits, CTR stream handling, SRP byte encodings, and GCM
+  nonce guidance; the main BLE reference documents all five JSON endpoints.
+- **Clarified provisioning outcomes and timing.** A BLE disconnect after
+  credentials are received does not prove Wi-Fi connection success, and the
+  separate teardown policy can close BLE before the 15-second reboot backstop.
+  Updated related guides and the recorded hardware verification of `network-info`.
+- **Expanded the Kconfig reference** to cover missing options and corrected
+  its configuration example. The new wire reference is included in navigation
+  and the generated AI-readable documentation.
 
 ## [0.2.3] — 2026-08-29 - The SoftAP portal can be compiled out
 
