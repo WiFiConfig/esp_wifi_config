@@ -10,13 +10,15 @@ package 3.3.11**. It builds with Arduino IDE/CLI and PlatformIO's native Arduino
 framework. No ESP-IDF project, menuconfig, or rebuilt board package is required.
 The original ESP-IDF C API remains available alongside `ESPWiFiConfig.h`.
 
-This support is available on `main`; the published 0.2.4 package predates it.
-Install the `main` branch ZIP or use a local checkout.
+Native Arduino and optional NimBLE-Arduino support are included in **0.3.1**.
+Install the [0.3.1 library ZIP](https://github.com/WiFiConfig/esp_wifi_config/archive/refs/tags/0.3.1.zip)
+or use the PlatformIO dependency below.
 
 ## Install and connect
 
 1. Install **esp32 by Espressif Systems**, version 3.3.11, in Boards Manager.
-2. Install the library ZIP using **Sketch → Include Library → Add .ZIP Library**.
+2. Download the [0.3.1 library ZIP](https://github.com/WiFiConfig/esp_wifi_config/archive/refs/tags/0.3.1.zip)
+   and install it using **Sketch → Include Library → Add .ZIP Library**.
 3. Open **ESP WiFi Config → arduino → Basic** and select your board.
 4. For the full BLE and web UI examples, select **Partition Scheme → Minimal
    SPIFFS (1.9MB APP with OTA/190KB SPIFFS)**, or another layout with sufficient
@@ -186,7 +188,7 @@ platform = https://github.com/pioarduino/platform-espressif32/releases/download/
 board = esp32-s3-devkitc-1
 framework = arduino
 board_build.partitions = min_spiffs.csv
-lib_deps = https://github.com/WiFiConfig/esp_wifi_config.git#main
+lib_deps = thorrak/esp_wifi_config@0.3.1
 ```
 
 The repository's `examples/arduino/PlatformIO` project instead links the local

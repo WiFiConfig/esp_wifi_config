@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09-12 - Native Arduino and optional NimBLE-Arduino support
+
 ### Added
 
 - Optional NimBLE-Arduino 2.5.1 transport for native Arduino Espressif provisioning

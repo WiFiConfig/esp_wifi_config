@@ -21,8 +21,8 @@ It's a one-stop shop: enable the channels you want at build time, fill in a `wif
 
 ## Arduino
 
-Native Arduino support is available on `main` (not in the published 0.2.4
-release). Use the stock Arduino-ESP32 3.3.11 board package
+Native Arduino support is included in version **0.3.1**. Use the stock
+Arduino-ESP32 3.3.11 board package
 and open `examples/arduino/Basic`. See the [Arduino guide](website/docs/arduino.md)
 for installation, build options, partition selection, and compatibility limits.
 Optional NimBLE-Arduino support is available for both Espressif provisioning and

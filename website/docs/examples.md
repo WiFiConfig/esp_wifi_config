@@ -83,8 +83,7 @@ Provisioning.
 
 ## Arduino sketches
 
-Use Arduino-ESP32 **3.3.11** and the library's `main` checkout;
-the published 0.2.4 package predates these sketches. Follow the
+Use Arduino-ESP32 **3.3.11** and ESP WiFi Config **0.3.1**. Follow the
 [Arduino guide](./arduino.md) for installation and partition selection.
 
 | Sketch in `examples/arduino/` | Demonstrates |

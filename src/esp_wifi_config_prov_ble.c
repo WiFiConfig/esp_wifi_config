@@ -392,7 +392,7 @@ esp_err_t wifi_cfg_prov_validate(const wifi_cfg_prov_config_t *prov)
 #define PROV_ENDPOINT_NETWORK_POLICY "esp-wifi-config-network-policy"
 #define PROV_ENDPOINT_NETWORK_INFO  "esp-wifi-config-network-info"
 
-#define PROV_LIB_VERSION_STRING     "esp_wifi_config 0.2.4"
+#define PROV_LIB_VERSION_STRING     "esp_wifi_config 0.3.1"
 
 /*
  * wifi_prov_mgr_endpoint_create() and _register() both return esp_err_t, and
