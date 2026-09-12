@@ -6,6 +6,9 @@ description: Install and configure ESP WiFi Config in your ESP-IDF project
 
 # Getting Started
 
+For a native Arduino sketch, follow the [Arduino guide](arduino.md). The steps below use ESP-IDF.
+
+
 ## Prerequisites
 
 - ESP-IDF >= 5.4

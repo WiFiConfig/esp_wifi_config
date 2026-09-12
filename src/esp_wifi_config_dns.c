@@ -4,6 +4,7 @@
  */
 
 #include "esp_wifi_config_priv.h"
+#if WIFI_CFG_SOFTAP
 #include "esp_log.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
@@ -233,3 +234,5 @@ esp_err_t wifi_cfg_dns_stop(void)
     ESP_LOGI(TAG, "DNS server stopped");
     return ESP_OK;
 }
+
+#endif // WIFI_CFG_SOFTAP

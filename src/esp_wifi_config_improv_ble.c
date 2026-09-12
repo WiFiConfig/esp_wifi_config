@@ -13,7 +13,7 @@
  * Reference: https://www.improv-wifi.com/ble/
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
 // Note: CONFIG_WIFI_CFG_ENABLE_IMPROV is derived from the transport flags inside
 // esp_wifi_config_priv.h, but priv.h hasn't been included yet at this point —
@@ -28,6 +28,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#if WIFI_CFG_ARDUINO_NIMBLE
+#include "freertos/semphr.h"
+#include "esp_wifi_config_ble_int.h"
+static SemaphoreHandle_t s_cmd_stopped;
+#endif
 
 static const char *TAG = "wifi_cfg_improv_ble";
 
@@ -78,11 +83,29 @@ static TaskHandle_t  s_cmd_task  = NULL;
 static volatile uint8_t  s_rpc_result[2 + IMPROV_RPC_MAX_PAYLOAD + 1];
 static volatile uint16_t s_rpc_result_len = 0;
 
+#if WIFI_CFG_ARDUINO_NIMBLE
+#include "esp_wifi_config_nimble_arduino.h"
+
+esp_err_t wifi_cfg_nimble_improv_enqueue(const uint8_t *data, size_t length)
+{
+    if (!s_cmd_queue || !data || !length || length > 512) return ESP_ERR_INVALID_ARG;
+    uint8_t *copy = malloc(length);
+    if (!copy) return ESP_ERR_NO_MEM;
+    memcpy(copy, data, length);
+    improv_ble_cmd_msg_t msg = { .data = copy, .length = length };
+    if (xQueueSend(s_cmd_queue, &msg, 0) != pdTRUE) {
+        free(copy);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+#endif
+
 // =============================================================================
 // NimBLE backend
 // =============================================================================
 
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_NIMBLE_ENABLED)
 
 #include "host/ble_hs.h"
 #include "host/ble_gatt.h"
@@ -337,7 +360,7 @@ void wifi_cfg_improv_ble_on_disconnect_nimble(void)
 // Bluedroid backend
 // =============================================================================
 
-#if defined(CONFIG_BT_BLUEDROID_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
 
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
@@ -631,9 +654,11 @@ static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len)
     // Store the result for characteristic reads (spec-defined flow) and
     // also send a notification for clients that subscribe to it.
     uint16_t result_len = s_rpc_result_len;
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
+#if WIFI_CFG_ARDUINO_NIMBLE
+    wifi_cfg_nimble_improv_result((const uint8_t *)s_rpc_result, result_len);
+#elif defined(CONFIG_BT_NIMBLE_ENABLED)
     nimble_notify_rpc_result((const uint8_t *)s_rpc_result, result_len);
-#elif defined(CONFIG_BT_BLUEDROID_ENABLED)
+#elif !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
     bd_notify_rpc_result((const uint8_t *)s_rpc_result, result_len);
 #endif
 }
@@ -644,10 +669,12 @@ static void ble_response_cb(uint8_t type, const uint8_t *data, size_t len)
 
 static void ble_state_change_cb(improv_state_t state, improv_error_t error)
 {
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
+#if WIFI_CFG_ARDUINO_NIMBLE
+    wifi_cfg_nimble_improv_state(state, error);
+#elif defined(CONFIG_BT_NIMBLE_ENABLED)
     nimble_notify_state();
     if (error != IMPROV_ERROR_NONE) nimble_notify_error();
-#elif defined(CONFIG_BT_BLUEDROID_ENABLED)
+#elif !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
     bd_notify_state();
     if (error != IMPROV_ERROR_NONE) bd_notify_error();
 #endif
@@ -706,11 +733,13 @@ static size_t improv_ble_max_result_payload(void)
 {
     uint16_t mtu = 0;
 
-#if defined(CONFIG_BT_NIMBLE_ENABLED)
+#if WIFI_CFG_ARDUINO_NIMBLE
+    mtu = wifi_cfg_nimble_improv_mtu();
+#elif defined(CONFIG_BT_NIMBLE_ENABLED)
     if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
         mtu = ble_att_mtu(s_conn_handle);
     }
-#elif defined(CONFIG_BT_BLUEDROID_ENABLED)
+#elif !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
     if (s_bd_profile.connected) {
         mtu = s_bd_mtu;
     }
@@ -731,6 +760,7 @@ static void improv_ble_cmd_task(void *param)
 {
     improv_ble_cmd_msg_t msg;
     while (xQueueReceive(s_cmd_queue, &msg, portMAX_DELAY) == pdTRUE) {
+        if (!msg.data) break;
         if (improv_ble_frame_valid(msg.data, msg.length)) {
             /* BLE spec: one RPC Response holding every network -- as many of
              * them as this connection's MTU leaves room for. */
@@ -745,6 +775,9 @@ static void improv_ble_cmd_task(void *param)
         }
         free(msg.data);
     }
+#if WIFI_CFG_ARDUINO_NIMBLE
+    xSemaphoreGive(s_cmd_stopped);
+#endif
     vTaskDelete(NULL);
 }
 
@@ -759,9 +792,21 @@ esp_err_t wifi_cfg_improv_ble_init(void)
     s_cmd_queue = xQueueCreate(IMPROV_BLE_CMD_QUEUE_DEPTH, sizeof(improv_ble_cmd_msg_t));
     if (!s_cmd_queue) return ESP_ERR_NO_MEM;
 
+#if WIFI_CFG_ARDUINO_NIMBLE
+    s_cmd_stopped = xSemaphoreCreateBinary();
+    if (!s_cmd_stopped) {
+        vQueueDelete(s_cmd_queue);
+        s_cmd_queue = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+#endif
     BaseType_t ret = xTaskCreate(improv_ble_cmd_task, "improv_ble", IMPROV_BLE_CMD_TASK_STACK,
                                   NULL, 5, &s_cmd_task);
     if (ret != pdPASS) {
+#if WIFI_CFG_ARDUINO_NIMBLE
+        vSemaphoreDelete(s_cmd_stopped);
+        s_cmd_stopped = NULL;
+#endif
         vQueueDelete(s_cmd_queue);
         s_cmd_queue = NULL;
         return ESP_ERR_NO_MEM;
@@ -769,7 +814,7 @@ esp_err_t wifi_cfg_improv_ble_init(void)
 
     wifi_cfg_improv_register_state_cb(ble_state_change_cb);
 
-#if defined(CONFIG_BT_BLUEDROID_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
     // Register Improv GATT app. The GATTS callback is already registered by the
     // custom BLE backend — we do NOT re-register it here (Bluedroid supports only
     // one global GATTS callback). Instead, the custom backend's handler will
@@ -795,15 +840,29 @@ esp_err_t wifi_cfg_improv_ble_deinit(void)
 {
     ESP_LOGI(TAG, "Deinitializing Improv BLE");
 
-#if defined(CONFIG_BT_BLUEDROID_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_BT_BLUEDROID_ENABLED)
     if (s_bd_profile.gatts_if != ESP_GATT_IF_NONE) {
         esp_ble_gatts_app_unregister(s_bd_profile.gatts_if);
         s_bd_profile.gatts_if = ESP_GATT_IF_NONE;
     }
 #endif
 
+#if WIFI_CFG_ARDUINO_NIMBLE
+    // Stop and join GATT callbacks before freeing the queue they can write to.
+    esp_err_t err = wifi_cfg_ble_backend_deinit();
+    if (err != ESP_OK) return err;
+#endif
     if (s_cmd_task) {
+#if WIFI_CFG_ARDUINO_NIMBLE
+        // Let an in-flight RPC release its allocations and notification mutex.
+        improv_ble_cmd_msg_t stop = {0};
+        xQueueSend(s_cmd_queue, &stop, portMAX_DELAY);
+        xSemaphoreTake(s_cmd_stopped, portMAX_DELAY);
+        vSemaphoreDelete(s_cmd_stopped);
+        s_cmd_stopped = NULL;
+#else
         vTaskDelete(s_cmd_task);
+#endif
         s_cmd_task = NULL;
     }
     if (s_cmd_queue) {

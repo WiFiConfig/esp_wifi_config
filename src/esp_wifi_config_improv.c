@@ -6,7 +6,7 @@
  * this module processes RPC commands and invokes wifi_manager public API.
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
 // Note: CONFIG_WIFI_CFG_ENABLE_IMPROV is derived inside esp_wifi_config_priv.h
 // from the transport flags, but priv.h hasn't been included yet — gate on the

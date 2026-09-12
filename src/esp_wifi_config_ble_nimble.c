@@ -11,9 +11,9 @@
  * CONFIG_BT_NIMBLE_ENABLED are both set.
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
-#if defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_BLE) && defined(CONFIG_BT_NIMBLE_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_BLE) && defined(CONFIG_BT_NIMBLE_ENABLED)
 
 #include "esp_wifi_config_ble_int.h"
 #include "esp_wifi_config_improv.h"

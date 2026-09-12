@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-wificonfig.com-blue)](https://wificonfig.com)
 
-WiFi configuration component for ESP-IDF with multi-network support, auto-reconnect, and multiple provisioning interfaces. The library supports four provisioning methods with an optional Serial CLI for debugging:
+WiFi configuration library for ESP-IDF and native Arduino-ESP32 with multi-network support, auto-reconnect, and multiple provisioning interfaces. The library supports four provisioning methods with an optional Serial CLI for debugging:
 
 * Bluetooth (BLE) Provisionining
 * SoftAP Provisioning
@@ -18,6 +18,19 @@ These are provided "batteries included" with additional features such as:
 * Configurable state machine that decides when each interface activates and shuts down
 
 It's a one-stop shop: enable the channels you want at build time, fill in a `wifi_cfg_init()` struct, and the rest — captive portal popup, BLE pairing, credential storage, retries, reconnects, and teardown — is handled for you.
+
+## Arduino
+
+Native Arduino support is available on `main` (not in the published 0.2.4
+release). Use the stock Arduino-ESP32 3.3.11 board package
+and open `examples/arduino/Basic`. See the [Arduino guide](website/docs/arduino.md)
+for installation, build options, partition selection, and compatibility limits.
+Optional NimBLE-Arduino support is available for both Espressif provisioning and
+Improv BLE; see `NimBLEProvisioning` and `NimBLEImprov` in the Arduino examples.
+On classic ESP32, matched hardware tests measured about 51–58 KiB more free RAM
+while advertising and 429–434 KiB smaller firmware. S3 already uses SDK NimBLE
+and showed no resource benefit from switching. See the
+[measurements and test coverage](website/docs/arduino.md#nimble-arduino-measurements).
 
 ## Features
 
@@ -116,7 +129,12 @@ Fix, in order of preference:
 
 ### Reboot after successful BLE provisioning
 
-Espressif's `wifi_provisioning` component does not expose a clean way to tear down and rebuild the BLE/NimBLE stack in place. To avoid the class of latent post-provisioning BLE-handoff bugs that come from forcing one anyway, the library reboots the device automatically once a BLE provisioning session completes.
+The library enables automatic reboot by default to avoid BLE/Wi-Fi handoff
+failures seen with Espressif's SDK provisioning stack. Native Arduino now has
+tested provisioning and repeated `begin()` / `end()` without rebooting, including
+NimBLE-Arduino; applications choosing that lifecycle can set
+`prov_ble.disable_reboot_on_provisioning_success=true`. See the
+[Arduino ownership and cleanup limits](website/docs/arduino.md#nimble-arduino).
 
 The reboot fires on whichever happens first:
 

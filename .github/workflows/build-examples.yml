@@ -2,7 +2,7 @@ name: Build Examples
 
 on:
   push:
-    branches: [main, feat/gh_actions]
+    branches: [main, feat/gh_actions, feature/arduino-support]
   pull_request:
     branches: [main]
 

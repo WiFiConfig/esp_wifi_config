@@ -110,6 +110,9 @@ static bool serve_from_filesystem(httpd_req_t *req, const char *filepath)
  * CMake went on embedding the files, because an empty string is falsy there.
  * The assets shipped and nothing could reach them. */
 #ifdef WIFI_CFG_WEBUI_EMBEDDED
+#ifdef ARDUINO_ARCH_ESP32
+#include "arduino/webui_assets.h"
+#else
 // Embedded files (linked via CMakeLists.txt EMBED_FILES)
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
@@ -117,6 +120,7 @@ extern const uint8_t app_js_gz_start[] asm("_binary_app_js_gz_start");
 extern const uint8_t app_js_gz_end[] asm("_binary_app_js_gz_end");
 extern const uint8_t index_css_gz_start[] asm("_binary_index_css_gz_start");
 extern const uint8_t index_css_gz_end[] asm("_binary_index_css_gz_end");
+#endif
 
 static const struct {
     const char *uri;

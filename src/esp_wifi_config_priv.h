@@ -6,6 +6,7 @@
 #pragma once
 
 #include "esp_wifi_config.h"
+#include "esp_wifi_config_platform.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_event.h"
@@ -43,6 +44,7 @@ extern "C" {
  * otherwise. This block must stay ahead of the #ifndef fallback below, which
  * defines that symbol itself and would destroy the evidence.
  */
+#ifndef WIFI_CFG_SOFTAP
 #if defined(CONFIG_WIFI_CFG_ENABLE_SOFTAP)
 #define WIFI_CFG_SOFTAP 1
 #elif !defined(CONFIG_WIFI_CFG_MAX_NETWORKS)
@@ -50,6 +52,8 @@ extern "C" {
 #else
 #define WIFI_CFG_SOFTAP 0   /* Kconfig ran and the user said n */
 #endif
+
+#endif // WIFI_CFG_SOFTAP
 
 #ifndef CONFIG_WIFI_CFG_MAX_NETWORKS
 #define CONFIG_WIFI_CFG_MAX_NETWORKS 5
@@ -150,6 +154,7 @@ extern "C" {
 #define WIFI_CONNECTED_BIT          BIT0
 #define WIFI_FAIL_BIT               BIT1
 #define WIFI_SCAN_DONE_BIT          BIT2
+#define WIFI_STOPPING_BIT           BIT3
 
 // =============================================================================
 // Internal Events (sent to task queue)
@@ -241,6 +246,7 @@ typedef struct {
     
     // Task & Queue
     TaskHandle_t task;
+    SemaphoreHandle_t task_stopped;
     QueueHandle_t queue;
     
     // Sync
@@ -276,6 +282,11 @@ typedef struct {
 
 // Global context
 extern wifi_cfg_ctx_t *g_wifi_cfg;
+
+static inline bool wifi_cfg_stopping(void)
+{
+    return g_wifi_cfg && (xEventGroupGetBits(g_wifi_cfg->event_group) & WIFI_STOPPING_BIT);
+}
 
 // =============================================================================
 // NVS Functions (esp_wifi_config_nvs.c)

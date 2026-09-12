@@ -17,6 +17,7 @@ const SITE_URL = 'https://wificonfig.com';
 const PAGE_ORDER = [
   'overview.md',
   'getting-started.md',
+  'arduino.md',
   'ai-integration-guide.md',
   'guides/multi-network.md',
   'guides/custom-variables.md',

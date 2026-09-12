@@ -42,7 +42,7 @@
  * See MIGRATION.md for the recommended idf_component.yml change.
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
 #if defined(CONFIG_WIFI_CFG_ENABLE_NETWORK_PROVISIONING) && \
     defined(CONFIG_WIFI_CFG_NETWORK_PROVISIONING_BLE)
@@ -82,27 +82,28 @@
 #error "esp_wifi_config: ESP-IDF 5.5.3 NimBLE flow-control regression (IDFGH-17350) drops the BLE link during prov-scan on ESP32. Set CONFIG_BT_NIMBLE_HS_FLOW_CTRL=n in your sdkconfig.defaults, or build against ESP-IDF 5.5.4+. See the README 'ESP-IDF 5.5.3' section."
 #endif
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) && __has_include("network_provisioning/manager.h")
-// IDF 6.x with the migrated managed component.
+#if __has_include("network_provisioning/manager.h")
+#define WIFI_CFG_USE_NETWORK_PROV 1
+// Arduino also bundles this managed component on IDF 5.5.
 #  include "network_provisioning/manager.h"
 #  include "network_provisioning/scheme_ble.h"
+#  define WIFI_PROV_EVENT_HANDLER_T      network_prov_event_handler_t
+#  define WIFI_PROV_SECURITY2_PARAMS_T   network_prov_security2_params_t
 #  define WIFI_PROV_MGR_INIT             network_prov_mgr_init
 #  define WIFI_PROV_MGR_DEINIT           network_prov_mgr_deinit
 #  define WIFI_PROV_MGR_CONFIG_T         network_prov_mgr_config_t
 #  define WIFI_PROV_MGR_START            network_prov_mgr_start_provisioning
 #  define WIFI_PROV_MGR_STOP             network_prov_mgr_stop_provisioning
 #  define WIFI_PROV_MGR_IS_PROVISIONED   network_prov_mgr_is_wifi_provisioned
-#  define WIFI_PROV_MGR_RESET_PROV       network_prov_mgr_reset_provisioning
-#  define WIFI_PROV_MGR_RESET_SM         network_prov_mgr_reset_sm_state_for_reprovision
+#  define WIFI_PROV_MGR_RESET_PROV       network_prov_mgr_reset_wifi_provisioning
+#  define WIFI_PROV_MGR_RESET_SM         network_prov_mgr_reset_wifi_sm_state_for_reprovision
 #  define WIFI_PROV_MGR_ENDPOINT_CREATE  network_prov_mgr_endpoint_create
 #  define WIFI_PROV_MGR_ENDPOINT_REGISTER network_prov_mgr_endpoint_register
 #  define WIFI_PROV_MGR_DISABLE_AUTO_STOP network_prov_mgr_disable_auto_stop
-#  define WIFI_PROV_MGR_KEEP_BLE_ON      network_prov_mgr_keep_ble_on
 #  define WIFI_PROV_MGR_SET_APP_INFO     network_prov_mgr_set_app_info
 #  define WIFI_PROV_SCHEME_BLE           network_prov_scheme_ble
 #  define WIFI_PROV_SCHEME_BLE_SET_SERVICE_UUID network_prov_scheme_ble_set_service_uuid
 #  define WIFI_PROV_SCHEME_BLE_SET_MFG_DATA     network_prov_scheme_ble_set_mfg_data
-#  define WIFI_PROV_SCHEME_BLE_SET_RANDOM_ADDR  network_prov_scheme_ble_set_random_addr
 #  define WIFI_PROV_EVENT_BASE           NETWORK_PROV_EVENT
 #  define WIFI_PROV_EVT_INIT             NETWORK_PROV_INIT
 #  define WIFI_PROV_EVT_START            NETWORK_PROV_START
@@ -112,12 +113,12 @@
 #  define WIFI_PROV_EVT_CRED_SUCCESS     NETWORK_PROV_WIFI_CRED_SUCCESS
 #  define WIFI_PROV_EVT_DEINIT           NETWORK_PROV_DEINIT
 #  define WIFI_PROV_SECURITY_T           network_prov_security_t
-#  define WIFI_PROV_SECURITY_0           NETWORK_PROV_SECURITY_0
-#  define WIFI_PROV_SECURITY_1           NETWORK_PROV_SECURITY_1
-#  define WIFI_PROV_SECURITY_2           NETWORK_PROV_SECURITY_2
-#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BTDM NETWORK_PROV_SCHEME_HANDLER_FREE_BTDM
-#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BLE  NETWORK_PROV_SCHEME_HANDLER_FREE_BLE
-#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BT   NETWORK_PROV_SCHEME_HANDLER_FREE_BT
+#  define WIFI_PROV_SECURITY_0 ((WIFI_PROV_SECURITY_T)0)
+#  define WIFI_PROV_SECURITY_1 ((WIFI_PROV_SECURITY_T)1)
+#  define WIFI_PROV_SECURITY_2 ((WIFI_PROV_SECURITY_T)2)
+#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BTDM NETWORK_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM
+#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BLE  NETWORK_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BLE
+#  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BT   NETWORK_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BT
 #  define WIFI_PROV_SCHEME_EVT_HANDLER_NONE      NETWORK_PROV_EVENT_HANDLER_NONE
 #  define WIFI_PROV_FAIL_REASON_T        network_prov_wifi_sta_fail_reason_t
 #  define WIFI_PROV_STA_AUTH_ERROR       NETWORK_PROV_WIFI_STA_AUTH_ERROR
@@ -125,6 +126,8 @@
 // IDF 5.x in-tree wifi_provisioning component.
 #  include "wifi_provisioning/manager.h"
 #  include "wifi_provisioning/scheme_ble.h"
+#  define WIFI_PROV_EVENT_HANDLER_T      wifi_prov_event_handler_t
+#  define WIFI_PROV_SECURITY2_PARAMS_T   wifi_prov_security2_params_t
 #  define WIFI_PROV_MGR_INIT             wifi_prov_mgr_init
 #  define WIFI_PROV_MGR_DEINIT           wifi_prov_mgr_deinit
 #  define WIFI_PROV_MGR_CONFIG_T         wifi_prov_mgr_config_t
@@ -151,9 +154,9 @@
 #  define WIFI_PROV_EVT_CRED_SUCCESS     WIFI_PROV_CRED_SUCCESS
 #  define WIFI_PROV_EVT_DEINIT           WIFI_PROV_DEINIT
 #  define WIFI_PROV_SECURITY_T           wifi_prov_security_t
-#  define WIFI_PROV_SECURITY_0           WIFI_PROV_SECURITY_0
-#  define WIFI_PROV_SECURITY_1           WIFI_PROV_SECURITY_1
-#  define WIFI_PROV_SECURITY_2           WIFI_PROV_SECURITY_2
+#  define WIFI_PROV_SECURITY_0 ((WIFI_PROV_SECURITY_T)0)
+#  define WIFI_PROV_SECURITY_1 ((WIFI_PROV_SECURITY_T)1)
+#  define WIFI_PROV_SECURITY_2 ((WIFI_PROV_SECURITY_T)2)
 #  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BTDM WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM
 #  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BLE  WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BLE
 #  define WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BT   WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BT
@@ -172,6 +175,11 @@ static bool s_prov_initialized = false;     // wifi_prov_mgr_init has been calle
 static bool s_prov_active      = false;     // wifi_prov_mgr_start_provisioning succeeded
 static int  s_failed_attempts  = 0;         // counted across CRED_FAIL events
 static bool s_coex_pref_set    = false;     // tracks whether we biased coex toward BT
+#ifdef ARDUINO_ARCH_ESP32
+// Arduino's WiFiGeneric owns manager deinit on NETWORK_PROV_END. A caller
+// ending the library must wait for its DEINIT event rather than race it.
+static SemaphoreHandle_t s_prov_stopped;
+#endif
 
 // IDF 5.5.3 NimBLE workaround state — see on_protocomm_ble_disconnect().
 static bool     s_creds_received  = false;  // set in WIFI_PROV_EVT_CRED_RECV
@@ -227,12 +235,35 @@ static WIFI_PROV_SECURITY_T resolve_security(void)
     }
 }
 
+#if WIFI_CFG_ARDUINO_NIMBLE
+#include "esp_wifi_config_nimble_arduino.h"
+#undef WIFI_PROV_SCHEME_BLE
+#undef WIFI_PROV_SCHEME_BLE_SET_SERVICE_UUID
+#undef WIFI_PROV_SCHEME_BLE_SET_MFG_DATA
+#define WIFI_PROV_SCHEME_BLE wifi_cfg_nimble_prov_scheme
+#define WIFI_PROV_SCHEME_BLE_SET_SERVICE_UUID wifi_cfg_nimble_prov_set_uuid
+#define WIFI_PROV_SCHEME_BLE_SET_MFG_DATA wifi_cfg_nimble_prov_set_mfg_data
+#define WIFI_CFG_PROV_TRANSPORT_EVENT WIFI_CFG_NIMBLE_PROV_EVENT
+#else
+#define WIFI_CFG_PROV_TRANSPORT_EVENT PROTOCOMM_TRANSPORT_BLE_EVENT
+#endif
+
 // Map memory_policy enum to a wifi_prov_event_handler_t. If the BT
 // controller is already enabled at start time we assume the application
 // owns the stack and override to KEEP_ALL — freeing memory underneath an
 // active host would fault.
-static wifi_prov_event_handler_t resolve_scheme_event_handler(void)
+static WIFI_PROV_EVENT_HANDLER_T resolve_scheme_event_handler(void)
 {
+#if WIFI_CFG_ARDUINO_NIMBLE
+    // NimBLE-Arduino releases its host allocations at stop. Retain the BLE
+    // controller reservation so provisioning can restart without a reboot.
+    // Its init already releases Classic BT memory on ESP32.
+    if (g_wifi_cfg && g_wifi_cfg->config.prov_ble.memory_policy != WIFI_CFG_PROV_MEM_KEEP_ALL) {
+        ESP_LOGW(TAG, "NimBLE-Arduino retains BLE controller memory for restart; host heap is freed on stop");
+    }
+    WIFI_PROV_EVENT_HANDLER_T h = WIFI_PROV_SCHEME_EVT_HANDLER_NONE;
+    return h;
+#else
     wifi_cfg_prov_memory_policy_t policy = WIFI_CFG_PROV_MEM_FREE_BTDM;
     if (g_wifi_cfg) policy = g_wifi_cfg->config.prov_ble.memory_policy;
 
@@ -258,23 +289,24 @@ static wifi_prov_event_handler_t resolve_scheme_event_handler(void)
 
     switch (policy) {
         case WIFI_CFG_PROV_MEM_FREE_BLE: {
-            wifi_prov_event_handler_t h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BLE;
+            WIFI_PROV_EVENT_HANDLER_T h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BLE;
             return h;
         }
         case WIFI_CFG_PROV_MEM_FREE_BT: {
-            wifi_prov_event_handler_t h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BT;
+            WIFI_PROV_EVENT_HANDLER_T h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BT;
             return h;
         }
         case WIFI_CFG_PROV_MEM_KEEP_ALL: {
-            wifi_prov_event_handler_t h = WIFI_PROV_SCHEME_EVT_HANDLER_NONE;
+            WIFI_PROV_EVENT_HANDLER_T h = WIFI_PROV_SCHEME_EVT_HANDLER_NONE;
             return h;
         }
         case WIFI_CFG_PROV_MEM_FREE_BTDM:
         default: {
-            wifi_prov_event_handler_t h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BTDM;
+            WIFI_PROV_EVENT_HANDLER_T h = WIFI_PROV_SCHEME_BLE_HANDLER_FREE_BTDM;
             return h;
         }
     }
+#endif
 }
 
 static const char *chip_variant_str(void)
@@ -299,6 +331,24 @@ static const char *chip_variant_str(void)
 esp_err_t wifi_cfg_prov_validate(const wifi_cfg_prov_config_t *prov)
 {
     if (!prov) return ESP_OK;
+
+    wifi_cfg_prov_security_t security = prov->security;
+#ifndef CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_0
+    if (security == WIFI_CFG_PROV_SECURITY_0) return ESP_ERR_NOT_SUPPORTED;
+#endif
+#ifndef CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1
+    if (security == WIFI_CFG_PROV_SECURITY_DEFAULT || security == WIFI_CFG_PROV_SECURITY_1)
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+#ifndef CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_2
+    if (security == WIFI_CFG_PROV_SECURITY_2) return ESP_ERR_NOT_SUPPORTED;
+#endif
+    (void)security;
+#ifdef WIFI_CFG_USE_NETWORK_PROV
+    // The managed component bundled with Arduino has no connection-count field.
+    if (prov->wifi_conn_attempts != 0 || prov->random_addr || prov->keep_ble_on_after_stop)
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
 
     // Security 2 needs a salt + verifier; we don't silently fall back.
     // DEFAULT resolves to Security 1, so only an explicit Security 2 needs
@@ -696,6 +746,16 @@ static void restore_coex(void)
 // Provisioning event handler
 // =============================================================================
 
+static void queue_pending_restart(void)
+{
+    if (s_restart_pending) {
+        s_restart_pending = false;
+        s_creds_received = false;
+        ESP_LOGI(TAG, "Queueing prov mgr restart after BLE disconnect");
+        wifi_cfg_send_event(WM_INT_EVT_PROV_BLE_RESTART);
+    }
+}
+
 static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base != WIFI_PROV_EVENT_BASE) return;
@@ -808,10 +868,12 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             // Auto-stop is always disabled — END only fires after the
             // library-level lifecycle calls wifi_cfg_prov_stop(). Deinit
             // here finalises the protocomm teardown.
+#ifndef ARDUINO_ARCH_ESP32
             if (s_prov_initialized) {
                 WIFI_PROV_MGR_DEINIT();
                 s_prov_initialized = false;
             }
+#endif
             // Coex bias was raised in favour of BT during provisioning so
             // BLE GATT survives concurrent Wi-Fi scans (see wifi_cfg_prov_start).
             // The BLE link is no longer load-bearing here — restore balanced
@@ -823,18 +885,21 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             // (which pulls in NimBLE host init) runs with that task's stack
             // rather than the sys_evt task's — calling wifi_cfg_prov_start()
             // directly here overflows sys_evt's stack.
-            if (s_restart_pending) {
-                s_restart_pending = false;
-                s_creds_received  = false;
-                ESP_LOGI(TAG, "Queueing prov mgr restart after BLE disconnect");
-                wifi_cfg_send_event(WM_INT_EVT_PROV_BLE_RESTART);
-            }
+#ifndef ARDUINO_ARCH_ESP32
+            queue_pending_restart();
+#endif
             break;
 
         case WIFI_PROV_EVT_DEINIT:
             ESP_LOGI(TAG, "Provisioning deinitialised");
             s_prov_active = false;
             s_prov_initialized = false;
+#ifdef ARDUINO_ARCH_ESP32
+            // Wait for Arduino's final event before a restart, otherwise a
+            // stale DEINIT could clear the new session's initialized state.
+            if (s_prov_stopped) xSemaphoreGive(s_prov_stopped);
+            queue_pending_restart();
+#endif
             break;
 
         default:
@@ -851,6 +916,13 @@ esp_err_t wifi_cfg_prov_init(void)
     if (s_prov_initialized) {
         return ESP_OK;
     }
+
+#ifdef ARDUINO_ARCH_ESP32
+    if (!s_prov_stopped) {
+        s_prov_stopped = xSemaphoreCreateBinary();
+        if (!s_prov_stopped) return ESP_ERR_NO_MEM;
+    }
+#endif
 
     esp_err_t err = esp_event_handler_register(WIFI_PROV_EVENT_BASE,
                                                ESP_EVENT_ANY_ID,
@@ -873,6 +945,21 @@ esp_err_t wifi_cfg_prov_init(void)
 
 esp_err_t wifi_cfg_prov_deinit(void)
 {
+#ifndef ARDUINO_ARCH_ESP32
+    // END normally deinitializes the manager on the event-loop task. Remove
+    // that handler first so it cannot race this caller's synchronous deinit.
+    // Unregister also waits for a handler already executing to finish.
+    esp_event_handler_unregister(WIFI_PROV_EVENT_BASE,
+                                 ESP_EVENT_ANY_ID,
+                                 &prov_event_handler);
+#endif
+    if (s_disconnect_handler_registered) {
+        esp_event_handler_unregister(WIFI_CFG_PROV_TRANSPORT_EVENT,
+                                     PROTOCOMM_TRANSPORT_BLE_DISCONNECTED,
+                                     &on_protocomm_ble_disconnect);
+        s_disconnect_handler_registered = false;
+    }
+
     // Full library teardown — the app is shutting us down, so the reboot
     // backstop must not fire, and the BLE disconnect workaround must not
     // queue a restart from any in-flight disconnect event (wifi_cfg_prov_stop()
@@ -885,22 +972,27 @@ esp_err_t wifi_cfg_prov_deinit(void)
 
     wifi_cfg_prov_stop();
 
+#ifdef ARDUINO_ARCH_ESP32
+    // WiFiGeneric deinitializes the manager on END, even when WiFiProv is
+    // never used by the sketch. Calling MGR_DEINIT here concurrently can
+    // destroy the SDK mutex while its stop_service() is still waiting on it.
+    if (s_prov_initialized) xSemaphoreTake(s_prov_stopped, portMAX_DELAY);
+    esp_event_handler_unregister(WIFI_PROV_EVENT_BASE,
+                                 ESP_EVENT_ANY_ID,
+                                 &prov_event_handler);
+    if (s_prov_stopped) {
+        vSemaphoreDelete(s_prov_stopped);
+        s_prov_stopped = NULL;
+    }
+#else
     if (s_prov_initialized) {
         WIFI_PROV_MGR_DEINIT();
         s_prov_initialized = false;
     }
+#endif
     // Force-teardown path: WIFI_PROV_EVT_END may not get a chance to run, so
     // restore coex here too. No-op if already restored by the event handler.
     restore_coex();
-    if (s_disconnect_handler_registered) {
-        esp_event_handler_unregister(PROTOCOMM_TRANSPORT_BLE_EVENT,
-                                     PROTOCOMM_TRANSPORT_BLE_DISCONNECTED,
-                                     &on_protocomm_ble_disconnect);
-        s_disconnect_handler_registered = false;
-    }
-    esp_event_handler_unregister(WIFI_PROV_EVENT_BASE,
-                                 ESP_EVENT_ANY_ID,
-                                 &prov_event_handler);
     // Reset workaround state so a later init+start session begins clean.
     s_creds_received  = false;
     s_explicit_stop   = false;
@@ -927,6 +1019,12 @@ esp_err_t wifi_cfg_prov_start(void)
 
     // Scheme-level customisations must be applied before wifi_prov_mgr_init,
     // since scheme_ble caches them at init time.
+#if WIFI_CFG_ARDUINO_NIMBLE
+    // Clear optional advertising settings when a later begin() uses defaults.
+    WIFI_PROV_SCHEME_BLE_SET_SERVICE_UUID((uint8_t *)prov->service_uuid128);
+    WIFI_PROV_SCHEME_BLE_SET_MFG_DATA((uint8_t *)prov->manufacturer_data,
+                                     prov->manufacturer_data ? (ssize_t)prov->manufacturer_data_len : 0);
+#else
     if (prov->service_uuid128) {
         // The IDF prototype is non-const; the bytes are only read but we
         // cast through to satisfy the signature.
@@ -936,14 +1034,17 @@ esp_err_t wifi_cfg_prov_start(void)
         WIFI_PROV_SCHEME_BLE_SET_MFG_DATA((uint8_t *)prov->manufacturer_data,
                                           (ssize_t)prov->manufacturer_data_len);
     }
+#endif
+#ifndef WIFI_CFG_USE_NETWORK_PROV
     if (prov->random_addr) {
         WIFI_PROV_SCHEME_BLE_SET_RANDOM_ADDR(prov->random_addr);
     }
+#endif
 
     WIFI_PROV_MGR_CONFIG_T cfg = {
         .scheme = WIFI_PROV_SCHEME_BLE,
         .scheme_event_handler = resolve_scheme_event_handler(),
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if !defined(WIFI_CFG_USE_NETWORK_PROV) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
         // wifi_prov_mgr_config_t.wifi_prov_conn_cfg was added in ESP-IDF 5.5;
         // on 5.4 the manager has no per-session connect-attempt control, so the
         // wifi_conn_attempts knob is simply not applied there.
@@ -953,6 +1054,10 @@ esp_err_t wifi_cfg_prov_start(void)
 #endif
     };
 
+#ifdef ARDUINO_ARCH_ESP32
+    // A previous disconnect/restart may have left a completion token.
+    if (s_prov_stopped) xSemaphoreTake(s_prov_stopped, 0);
+#endif
     esp_err_t err = WIFI_PROV_MGR_INIT(cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "wifi_prov_mgr_init failed: %s", esp_err_to_name(err));
@@ -967,9 +1072,11 @@ esp_err_t wifi_cfg_prov_start(void)
     if (cleanup < 100) cleanup = 100;
     WIFI_PROV_MGR_DISABLE_AUTO_STOP(cleanup);
 
+#ifndef WIFI_CFG_USE_NETWORK_PROV
     if (prov->keep_ble_on_after_stop) {
         WIFI_PROV_MGR_KEEP_BLE_ON(1);
     }
+#endif
 
     // App-info metadata exposed on the standard proto-ver endpoint.
     // wifi_prov_mgr_set_app_info() takes `const char **` (non-const inner
@@ -1007,7 +1114,7 @@ esp_err_t wifi_cfg_prov_start(void)
     WIFI_PROV_SECURITY_T sec = resolve_security();
     const void *sec_params = NULL;
     const char *sec1_pop = NULL;
-    static wifi_prov_security2_params_t sec2_params;
+    static WIFI_PROV_SECURITY2_PARAMS_T sec2_params;
 
     if (sec == WIFI_PROV_SECURITY_2) {
         // Validation in wifi_cfg_prov_validate() guarantees these pointers
@@ -1075,7 +1182,7 @@ esp_err_t wifi_cfg_prov_start(void)
     // guaranteed up. Guarded by s_disconnect_handler_registered because
     // restart cycles call _start() repeatedly without _deinit() in between.
     if (!s_disconnect_handler_registered) {
-        esp_err_t derr = esp_event_handler_register(PROTOCOMM_TRANSPORT_BLE_EVENT,
+        esp_err_t derr = esp_event_handler_register(WIFI_CFG_PROV_TRANSPORT_EVENT,
                                                     PROTOCOMM_TRANSPORT_BLE_DISCONNECTED,
                                                     &on_protocomm_ble_disconnect,
                                                     NULL);

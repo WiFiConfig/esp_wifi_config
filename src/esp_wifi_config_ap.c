@@ -74,7 +74,7 @@ esp_err_t wifi_cfg_start_ap(const wifi_cfg_ap_config_t *config)
     wifi_mode_t current_mode;
     esp_wifi_get_mode(&current_mode);
     if (current_mode != WIFI_MODE_APSTA) {
-        esp_wifi_set_mode(WIFI_MODE_APSTA);
+        wifi_cfg_platform_set_mode(WIFI_MODE_APSTA);
     }
     
     wifi_config_t wifi_cfg = {
@@ -127,7 +127,7 @@ esp_err_t wifi_cfg_stop_ap(void)
     wifi_cfg_dns_stop();
 
     g_wifi_cfg->ap_active = false;
-    esp_wifi_set_mode(WIFI_MODE_STA);
+    wifi_cfg_platform_set_mode(WIFI_MODE_STA);
 
     wifi_cfg_event_post(WIFI_CFG_EVENT_AP_STOP, NULL, 0);
 

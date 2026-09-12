@@ -23,7 +23,23 @@ how to update existing client tools.
 - Library still owns the higher-level lifecycle: provisioning mode,
   retry/backoff, multi-network store, custom variables, post-prov HTTP.
 
-## Enabling
+## Enabling in Arduino
+
+Native Arduino uses the same provisioning protocol and custom endpoints. Put
+these flags in the sketch's `build_opt.h`, or in PlatformIO's `build_flags`:
+
+```text
+-DWIFI_CFG_ARDUINO_PROV_BLE=1
+```
+
+This selects the board package's stock BLE host. To use **NimBLE-Arduino 2.5.1**,
+install that optional library and also set `-DWIFI_CFG_ARDUINO_NIMBLE=1`.
+See the [Arduino guide](../arduino.md#nimble-arduino) for setup, measured RAM
+savings and runtime compatibility limits. The `NimBLEProvisioning` sketch
+provides a complete native example. Arduino builds do not use the Kconfig
+settings below; use the Arduino guide's C++ configuration example instead.
+
+## Enabling in ESP-IDF
 
 ### 1. Kconfig
 
@@ -98,12 +114,15 @@ the BLE/Wi-Fi handoff itself.
 
 ### Why
 
-Espressif's `wifi_provisioning` component does not expose a clean way
-to tear down and rebuild the BLE/NimBLE stack in place. Any in-place
-teardown leaves enough residual state (stale GATT db, lingering
-controller state, suspended supervision timers) that subsequent BLE
-operations behave unpredictably. A cold boot is the only state that
-is reliably consistent.
+The default reboot was introduced to avoid BLE/Wi-Fi handoff failures seen
+with Espressif's SDK provisioning stack. It remains enabled for both stock and
+NimBLE-Arduino builds unless the application disables it.
+
+Native Arduino tests now cover provisioning and repeated `begin()` / `end()`
+without rebooting, including NimBLE-Arduino. To use that lifecycle, set
+`prov_ble.disable_reboot_on_provisioning_success=true`. This does not enable
+sharing the NimBLE-Arduino server with application BLE code; its
+[ownership and cleanup limits](../arduino.md#nimble-arduino) still apply.
 
 ### Trigger ordering
 

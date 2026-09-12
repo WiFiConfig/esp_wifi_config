@@ -6,7 +6,10 @@ description: Complete example projects demonstrating different feature combinati
 
 # Examples
 
-All examples are complete ESP-IDF projects you can build and flash directly. Each includes a `main.c`, `CMakeLists.txt`, `sdkconfig.defaults`, and `idf_component.yml`.
+The ESP-IDF examples are complete projects you can build and flash directly.
+Each includes a `main.c`, `CMakeLists.txt`, `sdkconfig.defaults`, and
+`idf_component.yml`. Native [Arduino sketches](#arduino-sketches) are also
+available under `examples/arduino`.
 
 ```bash
 cd examples/<example_name>
@@ -75,3 +78,29 @@ the ESPHome companion app, and Web Serial. Mutually exclusive with
 Network Provisioning BLE — pick one BLE protocol per firmware build.
 Improv Serial is independent of BLE and remains safe alongside Network
 Provisioning.
+
+---
+
+## Arduino sketches
+
+Use Arduino-ESP32 **3.3.11** and the library's `main` checkout;
+the published 0.2.4 package predates these sketches. Follow the
+[Arduino guide](./arduino.md) for installation and partition selection.
+
+| Sketch in `examples/arduino/` | Demonstrates |
+| --- | --- |
+| `Basic` | SoftAP captive portal and saved-network management |
+| `ProvisioningBLE` | Espressif provisioning using the stock BLE host |
+| `ImprovBLE` | Improv provisioning using the stock BLE host |
+| `NimBLEProvisioning` | Espressif provisioning using NimBLE-Arduino |
+| `NimBLEImprov` | Improv provisioning using NimBLE-Arduino |
+| `ImprovSerial` | Serial provisioning through an Arduino `Stream` |
+| `NoPortal` | Building with SoftAP and the web UI disabled |
+| `Client` / `Lifecycle` | Arduino network clients and repeated initialization/shutdown |
+
+The two NimBLE sketches require **NimBLE-Arduino 2.5.1** and include their
+`build_opt.h` flags. Both BLE protocols are alternatives; choose the one your
+client supports. The `PlatformIO` example includes a `nimble` environment with
+the optional dependency and flags configured. See the
+[resource comparison](./arduino.md#nimble-arduino-measurements) before selecting
+a BLE host for your board.

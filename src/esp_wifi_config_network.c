@@ -53,6 +53,7 @@ uint32_t wifi_cfg_calc_backoff_delay(int retry)
 
 void wifi_cfg_start_connect_sequence(void)
 {
+    if (wifi_cfg_stopping()) return;
     // A connect sequence is starting now, so any auto-reconnect scheduled for
     // later is redundant. Cancelling centrally (rather than at each of the
     // half-dozen call sites) keeps the manager task from re-entering this
@@ -94,6 +95,7 @@ void wifi_cfg_start_connect_sequence(void)
         esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 
         for (int retry = 0; retry < g_wifi_cfg->config.max_retry_per_network; retry++) {
+            if (wifi_cfg_stopping()) return;
             xEventGroupClearBits(g_wifi_cfg->event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
 
             esp_err_t err = esp_wifi_connect();
@@ -104,9 +106,11 @@ void wifi_cfg_start_connect_sequence(void)
 
             // Wait for connection result
             EventBits_t bits = xEventGroupWaitBits(g_wifi_cfg->event_group,
-                                                   WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                                   WIFI_CONNECTED_BIT | WIFI_FAIL_BIT | WIFI_STOPPING_BIT,
                                                    pdFALSE, pdFALSE,
                                                    pdMS_TO_TICKS(15000));
+
+            if (bits & WIFI_STOPPING_BIT) return;
 
             if (bits & WIFI_CONNECTED_BIT) {
                 ESP_LOGI(TAG, "Connected to %s", net->ssid);
@@ -121,7 +125,8 @@ void wifi_cfg_start_connect_sequence(void)
             if (retry < g_wifi_cfg->config.max_retry_per_network - 1) {
                 uint32_t delay = wifi_cfg_calc_backoff_delay(retry);
                 ESP_LOGI(TAG, "Backoff delay: %lu ms", (unsigned long)delay);
-                vTaskDelay(pdMS_TO_TICKS(delay));
+                if (xEventGroupWaitBits(g_wifi_cfg->event_group, WIFI_STOPPING_BIT,
+                                        pdFALSE, pdFALSE, pdMS_TO_TICKS(delay)) & WIFI_STOPPING_BIT) return;
             }
         }
     }
@@ -346,10 +351,16 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
     if (ret != ESP_OK) return ret;
     
     EventBits_t bits = xEventGroupWaitBits(g_wifi_cfg->event_group,
-                                           WIFI_SCAN_DONE_BIT,
-                                           pdTRUE, pdFALSE,
+                                           WIFI_SCAN_DONE_BIT | WIFI_STOPPING_BIT,
+                                           pdFALSE, pdFALSE,
                                            pdMS_TO_TICKS(10000));
     
+    if (bits & WIFI_STOPPING_BIT) {
+        esp_wifi_scan_stop();
+        return ESP_ERR_INVALID_STATE;
+    }
+    xEventGroupClearBits(g_wifi_cfg->event_group, WIFI_SCAN_DONE_BIT);
+
     if (!(bits & WIFI_SCAN_DONE_BIT)) {
         return ESP_ERR_TIMEOUT;
     }

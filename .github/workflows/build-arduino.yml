@@ -1,0 +1,83 @@
+name: Build Arduino
+on:
+  push:
+    branches: [main, feature/arduino-support]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  arduino:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32, esp32s3, esp32c3, esp32c6]
+        example: [Basic, ProvisioningBLE, ImprovBLE, ImprovSerial, NoPortal]
+        include:
+          - {target: esp32s2, example: Basic}
+          - {target: esp32s3, example: Client}
+          - {target: esp32s3, example: Lifecycle}
+          - {target: esp32s3, example: MultiNetwork}
+          - {target: esp32s3, example: CustomVariables}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install stock core
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Test Arduino resource ownership
+        run: python3 test/arduino/run.py
+      - name: Verify generated web assets
+        run: python3 tools/generate_arduino_assets.py --check
+      - name: Build sketch
+        run: >-
+          arduino-cli compile
+          --fqbn esp32:esp32:${{ matrix.target }}:PartitionScheme=min_spiffs
+          --library "$PWD"
+          examples/arduino/${{ matrix.example }}
+      - name: Build USB CDC Improv
+        if: matrix.target == 'esp32s3' && matrix.example == 'ImprovSerial'
+        run: >-
+          arduino-cli compile
+          --fqbn esp32:esp32:esp32s3:PartitionScheme=min_spiffs,CDCOnBoot=cdc
+          --library "$PWD"
+          examples/arduino/ImprovSerial
+      - name: Build hardware interoperability probe
+        if: matrix.target == 'esp32s3' && matrix.example == 'Basic'
+        run: >-
+          arduino-cli compile
+          --fqbn esp32:esp32:esp32s3:PartitionScheme=min_spiffs
+          --library "$PWD"
+          test/arduino/HardwareInterop
+  nimble_arduino:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32, esp32s3, esp32c3, esp32c6]
+        example: [NimBLEProvisioning, NimBLEImprov]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install pinned core and optional BLE host
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.11 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install NimBLE-Arduino@2.5.1
+      - name: Build NimBLE-Arduino sketch
+        run: >-
+          arduino-cli compile
+          --fqbn esp32:esp32:${{ matrix.target }}:PartitionScheme=min_spiffs
+          --library "$PWD"
+          examples/arduino/${{ matrix.example }}
+  platformio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio
+      - run: pio run -d examples/arduino/PlatformIO -e esp32s3 -e esp32 -e ble -e nimble

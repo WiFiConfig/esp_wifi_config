@@ -7,6 +7,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Optional NimBLE-Arduino 2.5.1 transport for native Arduino Espressif provisioning
+  and Improv BLE, selected with `WIFI_CFG_ARDUINO_NIMBLE=1`. Existing security
+  handshakes and wire protocols are retained. Includes examples, CI builds and
+  a hardware probe comparing heap, firmware size and restart behavior.
+- Native Arduino-ESP32 3.3.11 builds for Arduino IDE/CLI and PlatformIO, with
+  `library.properties`, a C++ `ESPWiFiConfig` facade, and C/C++ defaults factory.
+- Arduino feature flags, checked-in generated web UI assets, examples for all
+  provisioning transports, and Arduino/PlatformIO CI builds.
+
+### Fixed
+
+- Arduino secure-provisioning shutdown waits for the core's manager teardown;
+  reconnect restarts wait for its final event, avoiding concurrent destruction.
+- Shutdown waits for the manager and Improv Serial worker to finish before
+  releasing their state, interrupting connection, scan, and backoff waits.
+- Classic ESP32 Improv BLE initializes the controller in BLE mode when using
+  the stock Arduino SDK, whose default controller configuration is dual-mode.
+
+### Changed
+
+- Arduino initializes and owns its Wi-Fi interfaces; the manager uses Arduino
+  mode changes, restores its reconnect setting on shutdown, and preserves the
+  shared NVS partition on initialization errors.
+- Improv Serial accepts an Arduino `Stream` while retaining the IDF UART backend.
+- Provisioning detects the available managed or in-tree API, fixes managed API
+  names/types, and rejects security modes or controls absent from that SDK.
+  The managed API lacks random BLE addresses, keep-BLE-on, and per-session
+  connection-attempt controls; the IDF backend retains those controls.
+
+
 ## [0.2.4] — 2026-09-10 - Internal cleanup and BLE protocol reference
 
 ### Changed

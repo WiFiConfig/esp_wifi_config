@@ -33,6 +33,8 @@ extern "C" {
  * only registers the Improv GATT service. On deinit, only the service will
  * be removed — the host stack will be left running for the application.
  *
+ * NimBLE-Arduino requires exclusive ownership and rejects an existing host.
+ *
  * @param device_name  Advertised device name (already expanded from template)
  * @return ESP_OK on success
  */

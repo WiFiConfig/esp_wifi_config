@@ -29,11 +29,13 @@ esp_err_t wifi_cfg_nvs_init(void)
 {
     // NVS may have already been initialized by another component
     esp_err_t ret = nvs_flash_init();
+#ifndef ARDUINO_ARCH_ESP32
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_LOGW(TAG, "NVS partition truncated, erasing...");
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
+#endif // Arduino owns initialization/recovery of the shared NVS partition.
     // ESP_ERR_NVS_INVALID_STATE = already initialized, OK
     if (ret == ESP_OK || ret == ESP_ERR_NVS_INVALID_STATE) {
         return ESP_OK;

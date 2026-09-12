@@ -4,6 +4,7 @@
  */
 
 #include "esp_wifi_config_priv.h"
+#if WIFI_CFG_SOFTAP
 #include "esp_log.h"
 #include "cJSON.h"
 #include "esp_wifi_config_json.h"
@@ -1339,3 +1340,5 @@ esp_err_t wifi_cfg_http_deinit(void)
     return ESP_OK;
 }
 
+
+#endif // WIFI_CFG_SOFTAP

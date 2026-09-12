@@ -214,6 +214,11 @@ void wifi_cfg_stop_provisioning(void)
 // Initialization
 // =============================================================================
 
+wifi_cfg_config_t wifi_cfg_default_config(void)
+{
+    return WIFI_CFG_DEFAULT_CONFIG();
+}
+
 esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
 {
     esp_err_t ret;
@@ -222,6 +227,13 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
         ESP_LOGW(TAG, "Already initialized");
         return ESP_ERR_INVALID_STATE;
     }
+
+#if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL)
+    if (!wifi_cfg_arduino_serial_ready()) {
+        ESP_LOGE(TAG, "Call setImprovSerial(stream) before begin()");
+        return ESP_ERR_INVALID_STATE;
+    }
+#endif
     
     // Allocate context
     g_wifi_cfg = calloc(1, sizeof(wifi_cfg_ctx_t));
@@ -229,10 +241,11 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
     
     // Init sync primitives
     g_wifi_cfg->mutex = xSemaphoreCreateMutex();
+    g_wifi_cfg->task_stopped = xSemaphoreCreateBinary();
     g_wifi_cfg->event_group = xEventGroupCreate();
     g_wifi_cfg->queue = xQueueCreate(WIFI_CFG_QUEUE_SIZE, sizeof(wifi_cfg_internal_msg_t));
     
-    if (!g_wifi_cfg->mutex || !g_wifi_cfg->event_group || !g_wifi_cfg->queue) {
+    if (!g_wifi_cfg->mutex || !g_wifi_cfg->task_stopped || !g_wifi_cfg->event_group || !g_wifi_cfg->queue) {
         ret = ESP_ERR_NO_MEM;
         goto cleanup;
     }
@@ -381,6 +394,12 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
         strncpy(g_wifi_cfg->auth_password, config->http.auth_password, sizeof(g_wifi_cfg->auth_password) - 1);
     }
     
+#ifdef ARDUINO_ARCH_ESP32
+    ret = wifi_cfg_platform_init();
+    if (ret != ESP_OK) goto cleanup;
+    g_wifi_cfg->sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    g_wifi_cfg->ap_netif = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+#else
     // Init TCP/IP stack (may have already been initialized by another component)
     ret = esp_netif_init();
     if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
@@ -430,10 +449,13 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
         goto cleanup;
     }
     
+#endif // ARDUINO_ARCH_ESP32
+
     // Register event handlers (lightweight - just send to queue)
     esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL);
     esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ip_event_handler, NULL);
     
+#ifndef ARDUINO_ARCH_ESP32
     // Set WiFi mode and start
     ret = esp_wifi_set_mode(WIFI_MODE_STA);
     if (ret != ESP_OK) {
@@ -446,6 +468,8 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
         ESP_LOGE(TAG, "WiFi start failed: %s", esp_err_to_name(ret));
         goto cleanup;
     }
+
+#endif
 
     // Init HTTP interface (server setup only, handlers are registered later by
     // wifi_cfg_start_provisioning() or the happy-path connect logic)
@@ -523,12 +547,23 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
     g_wifi_cfg->teardown_timer = xTimerCreate("prov_td", pdMS_TO_TICKS(1000),
                                                pdFALSE, NULL, teardown_timer_callback);
 
+#ifdef ARDUINO_ARCH_ESP32
+    // Arduino's begin(false) waits for STA_START before returning, so that
+    // event predates our handler registration. Kick the manager explicitly
+    // once all transports, synchronization objects and the timer are ready.
+    wifi_cfg_send_event(WM_INT_EVT_START);
+#endif
+
     ESP_LOGI(TAG, "WiFi Config initialized, %zu networks configured", g_wifi_cfg->network_count);
     return ESP_OK;
     
 cleanup:
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_cfg_platform_release(false);
+#endif
     if (g_wifi_cfg) {
         if (g_wifi_cfg->mutex) vSemaphoreDelete(g_wifi_cfg->mutex);
+        if (g_wifi_cfg->task_stopped) vSemaphoreDelete(g_wifi_cfg->task_stopped);
         if (g_wifi_cfg->event_group) vEventGroupDelete(g_wifi_cfg->event_group);
         if (g_wifi_cfg->queue) vQueueDelete(g_wifi_cfg->queue);
         free(g_wifi_cfg);
@@ -540,6 +575,7 @@ cleanup:
 esp_err_t wifi_cfg_deinit(bool deinit_wifi)
 {
     if (!g_wifi_cfg) return ESP_ERR_INVALID_STATE;
+    if (xTaskGetCurrentTaskHandle() == g_wifi_cfg->task) return ESP_ERR_INVALID_STATE;
     
     // Cancel teardown timer if running
     if (g_wifi_cfg->teardown_timer) {
@@ -548,9 +584,11 @@ esp_err_t wifi_cfg_deinit(bool deinit_wifi)
         g_wifi_cfg->teardown_timer = NULL;
     }
 
-    // Stop task
+    // Interrupt connect/scan/backoff waits, then wait for the actual task exit.
+    // A fixed delay can expire while the task still holds this context.
+    xEventGroupSetBits(g_wifi_cfg->event_group, WIFI_STOPPING_BIT);
     wifi_cfg_send_event(WM_INT_EVT_STOP);
-    vTaskDelay(pdMS_TO_TICKS(100));
+    xSemaphoreTake(g_wifi_cfg->task_stopped, portMAX_DELAY);
 
 #ifdef CONFIG_WIFI_CFG_ENABLE_IMPROV
     wifi_cfg_improv_stop();
@@ -581,6 +619,9 @@ esp_err_t wifi_cfg_deinit(bool deinit_wifi)
     esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler);
     esp_event_handler_unregister(IP_EVENT, ESP_EVENT_ANY_ID, &ip_event_handler);
     
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_cfg_platform_release(deinit_wifi);
+#else
     if (deinit_wifi) {
         esp_wifi_stop();
         esp_wifi_deinit();
@@ -596,8 +637,11 @@ esp_err_t wifi_cfg_deinit(bool deinit_wifi)
         }
     }
         
-    // Task auto-deletes when it receives WM_INT_EVT_STOP, no need to delete again
+#endif
+
+    // The task acknowledged exit; it no longer accesses the context.
     g_wifi_cfg->task = NULL;
+    vSemaphoreDelete(g_wifi_cfg->task_stopped);
     vSemaphoreDelete(g_wifi_cfg->mutex);
     vEventGroupDelete(g_wifi_cfg->event_group);
     vQueueDelete(g_wifi_cfg->queue);
@@ -728,6 +772,7 @@ static void wifi_cfg_task(void *arg)
     ESP_LOGI(TAG, "Task started");
     
     while (1) {
+        if (wifi_cfg_stopping()) break;
         // The auto-reconnect backoff is a *deadline*, not a sleep. When one is
         // pending we shorten this wait to whatever is left of it, so the task
         // keeps draining its queue for the whole backoff instead of sitting in
@@ -746,6 +791,7 @@ static void wifi_cfg_task(void *arg)
         }
 
         if (xQueueReceive(g_wifi_cfg->queue, &evt, wait_ticks) == pdTRUE) {
+            if (wifi_cfg_stopping()) break;
             switch (evt.type) {
                 case WM_INT_EVT_START:
                     // Provisioning mode state machine
@@ -1022,9 +1068,7 @@ static void wifi_cfg_task(void *arg)
                     break;
 
                 case WM_INT_EVT_STOP:
-                    ESP_LOGI(TAG, "Task stopped");
-                    vTaskDelete(NULL);
-                    return;
+                    goto task_exit;
                     
                 default:
                     break;
@@ -1048,6 +1092,10 @@ static void wifi_cfg_task(void *arg)
             }
         }
     }
+task_exit:
+    ESP_LOGI(TAG, "Task stopped");
+    xSemaphoreGive(g_wifi_cfg->task_stopped);
+    vTaskDelete(NULL);
 }
 
 // =============================================================================

@@ -167,6 +167,7 @@
 
 #pragma once
 
+#include "../src/esp_wifi_config_build.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "esp_err.h"
@@ -1021,7 +1022,13 @@ typedef struct {
     }
 
 /** @brief `WIFI_CFG_DEFAULTS` as a complete struct value. See above. */
+/** Return the defaults as a value, usable in both C and C++. */
+wifi_cfg_config_t wifi_cfg_default_config(void);
+#ifdef __cplusplus
+#define WIFI_CFG_DEFAULT_CONFIG() wifi_cfg_default_config()
+#else
 #define WIFI_CFG_DEFAULT_CONFIG() ((wifi_cfg_config_t){ WIFI_CFG_DEFAULTS })
+#endif
 
 // =============================================================================
 // Public API

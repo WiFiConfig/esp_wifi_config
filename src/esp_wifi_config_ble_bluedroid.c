@@ -12,9 +12,9 @@
  * CONFIG_BT_BLUEDROID_ENABLED are both set.
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
-#if defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_BLE) && defined(CONFIG_BT_BLUEDROID_ENABLED)
+#if !WIFI_CFG_ARDUINO_NIMBLE && defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_BLE) && defined(CONFIG_BT_BLUEDROID_ENABLED)
 
 #include "esp_wifi_config_ble_int.h"
 #include "esp_wifi_config_improv.h"
@@ -163,6 +163,12 @@ esp_err_t wifi_cfg_ble_backend_init(const char *device_name)
         ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
 
         esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+#if CONFIG_IDF_TARGET_ESP32
+        // Stock Arduino enables dual-mode support in its SDK. This backend
+        // owns only BLE and releases Classic memory above, so initialize the
+        // controller in the same BLE mode passed to enable() below.
+        bt_cfg.mode = ESP_BT_MODE_BLE;
+#endif
         esp_err_t ret = esp_bt_controller_init(&bt_cfg);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "BT controller init failed: %s", esp_err_to_name(ret));

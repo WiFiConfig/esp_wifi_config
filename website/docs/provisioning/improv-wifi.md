@@ -19,7 +19,7 @@ Improv **Serial** (`CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL`) is independent
 of BLE and remains safe to enable alongside Network Provisioning BLE.
 :::
 
-:::warning Improv Serial and the CLI cannot coexist
+:::warning ESP-IDF: Improv Serial and the CLI cannot coexist
 `CONFIG_WIFI_CFG_ENABLE_IMPROV_SERIAL` depends on
 `CONFIG_WIFI_CFG_ENABLE_CLI` being off. Both want to own the console
 UART — the CLI prints human-readable output via `esp_console` while
@@ -33,7 +33,21 @@ succeeds and ships with no serial provisioning. Check the generated
 
 ## Enabling Improv
 
-### Kconfig
+### Arduino
+
+For native Arduino Improv BLE, put `-DWIFI_CFG_ARDUINO_IMPROV_BLE=1` in the
+sketch's `build_opt.h`, or in PlatformIO's `build_flags`. The board package's
+stock BLE host is the default. For **NimBLE-Arduino 2.5.1**, install that optional
+library and also set `-DWIFI_CFG_ARDUINO_NIMBLE=1`; the `NimBLEImprov` example
+includes both flags. See the [Arduino guide](../arduino.md#nimble-arduino) for
+setup, RAM measurements and BLE ownership limits.
+
+Improv Serial uses `-DWIFI_CFG_ARDUINO_IMPROV_SERIAL=1` and an
+application-supplied `Stream`; see [Arduino serial setup](../arduino.md#ble-and-serial-details).
+The two BLE protocols remain mutually exclusive, while Serial can accompany
+either one. Arduino builds do not use the Kconfig settings below.
+
+### ESP-IDF Kconfig
 
 ```kconfig
 # BLE transport (requires Bluetooth enabled)
@@ -116,7 +130,7 @@ BLE, and cannot — but it will show them the nearby ones.
 
 ## BLE Stack Requirements
 
-Improv BLE requires `CONFIG_BT_ENABLED=y` and a NimBLE or Bluedroid host
+In ESP-IDF, Improv BLE requires `CONFIG_BT_ENABLED=y` and a NimBLE or Bluedroid host
 stack. The BLE stack is initialised automatically when Improv BLE is
 enabled — the library does not need any other Kconfig opt-in. See the
 [with_improv example](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_improv)

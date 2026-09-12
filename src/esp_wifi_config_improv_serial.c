@@ -8,7 +8,7 @@
  * Reference: https://www.improv-wifi.com/serial/
  */
 
-#include "sdkconfig.h"
+#include "esp_wifi_config_build.h"
 
 // Note: CONFIG_WIFI_CFG_ENABLE_IMPROV is derived from the transport flags inside
 // esp_wifi_config_priv.h, but priv.h hasn't been included yet at this point —
@@ -18,11 +18,14 @@
 #include "esp_wifi_config_improv.h"
 #include "esp_wifi_config_priv.h"
 #include "esp_log.h"
+#ifndef ARDUINO_ARCH_ESP32
 #include "driver/uart.h"
 #include "soc/uart_pins.h"
+#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
+#include <stdatomic.h>
 
 static const char *TAG = "wifi_cfg_improv_ser";
 
@@ -39,7 +42,8 @@ static const char *TAG = "wifi_cfg_improv_ser";
 
 static int s_uart_num = -1;
 static TaskHandle_t s_rx_task = NULL;
-static bool s_running = false;
+static atomic_bool s_running = false;
+static SemaphoreHandle_t s_rx_stopped = NULL;
 
 // =============================================================================
 // Packet TX
@@ -100,7 +104,11 @@ static void serial_send_packet(uint8_t type, const uint8_t *data, size_t len)
     buf[offset] = improv_checksum(buf, offset);
     offset++;
 
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_cfg_arduino_serial_write(buf, offset);
+#else
     uart_write_bytes(s_uart_num, buf, offset);
+#endif
 }
 
 static void serial_send_state(void)
@@ -164,7 +172,11 @@ static void serial_rx_task(void *param)
     uint8_t checksum = 0;
 
     while (s_running) {
+#ifdef ARDUINO_ARCH_ESP32
+        int read = wifi_cfg_arduino_serial_read(&byte);
+#else
         int read = uart_read_bytes(s_uart_num, &byte, 1, pdMS_TO_TICKS(100));
+#endif
         if (read <= 0) continue;
 
         switch (parse_state) {
@@ -257,6 +269,7 @@ static void serial_rx_task(void *param)
         }
     }
 
+    xSemaphoreGive(s_rx_stopped);
     vTaskDelete(NULL);
 }
 
@@ -266,6 +279,10 @@ static void serial_rx_task(void *param)
 
 esp_err_t wifi_cfg_improv_serial_init(void)
 {
+#ifdef ARDUINO_ARCH_ESP32
+    if (!wifi_cfg_arduino_serial_ready()) return ESP_ERR_INVALID_STATE;
+    s_uart_num = 0; // The configured Arduino Stream is the transport.
+#else
     int uart_num = CONFIG_WIFI_CFG_IMPROV_SERIAL_UART_NUM;
     int baud = CONFIG_WIFI_CFG_IMPROV_SERIAL_BAUD;
 
@@ -342,11 +359,15 @@ esp_err_t wifi_cfg_improv_serial_init(void)
     }
 
     s_uart_num = uart_num;
+#endif
+
+    s_rx_stopped = xSemaphoreCreateBinary();
+    if (!s_rx_stopped) return ESP_ERR_NO_MEM;
 
     // Register state-change callback
     wifi_cfg_improv_register_state_cb(serial_state_change_cb);
 
-    ESP_LOGI(TAG, "Improv Serial initialized on UART%d @ %d baud", uart_num, baud);
+    ESP_LOGI(TAG, "Improv Serial initialized");
     return ESP_OK;
 }
 
@@ -354,6 +375,8 @@ esp_err_t wifi_cfg_improv_serial_deinit(void)
 {
     wifi_cfg_improv_serial_stop();
     s_uart_num = -1;
+    if (s_rx_stopped) vSemaphoreDelete(s_rx_stopped);
+    s_rx_stopped = NULL;
     return ESP_OK;
 }
 
@@ -383,7 +406,7 @@ esp_err_t wifi_cfg_improv_serial_stop(void)
 
     // Wait for task to exit
     if (s_rx_task) {
-        vTaskDelay(pdMS_TO_TICKS(200));
+        xSemaphoreTake(s_rx_stopped, portMAX_DELAY);
         s_rx_task = NULL;
     }
 

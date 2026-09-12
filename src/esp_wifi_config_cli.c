@@ -1,3 +1,5 @@
+#include "esp_wifi_config_build.h"
+#ifdef CONFIG_WIFI_CFG_ENABLE_CLI
 /**
  * @file esp_wifi_config_cli.c
  * @brief CLI interface for WiFi Config
@@ -404,3 +406,5 @@ esp_err_t wifi_cfg_cli_init(void)
 
     return ESP_OK;
 }
+
+#endif // CONFIG_WIFI_CFG_ENABLE_CLI
