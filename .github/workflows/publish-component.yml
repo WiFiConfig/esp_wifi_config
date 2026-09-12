@@ -3,12 +3,40 @@ name: Publish to ESP Component Registry
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify embedded assets in the registry package
+        run: |
+          python -m pip install idf-component-manager
+          python -m idf_component_manager component pack --name esp_wifi_config --dest-dir "$RUNNER_TEMP/idf-package"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import tarfile
+
+          assets = re.findall(r'"(frontend/dist/[^"\n]+)"', Path("CMakeLists.txt").read_text())
+          if not assets:
+              raise RuntimeError("No embedded web UI assets found in CMakeLists.txt")
+          archive = next((Path(os.environ["RUNNER_TEMP"]) / "idf-package").glob("*.tgz"))
+          with tarfile.open(archive) as package:
+              files = {entry.name.removeprefix("./"): package.extractfile(entry).read()
+                       for entry in package.getmembers() if entry.isfile()}
+          for asset in assets:
+              if files.get(asset) != Path(asset).read_bytes():
+                  raise RuntimeError(f"Registry package is missing or changed: {asset}")
+          print(f"Verified all {len(assets)} embedded web UI assets in {archive.name}")
+          PY
 
       - uses: espressif/upload-components-ci-action@v2
         with:

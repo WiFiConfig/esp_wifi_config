@@ -1,10 +1,19 @@
-version: "0.3.1"
+# Registry packaging revision; the library release remains 0.3.1.
+version: "0.3.1~1"
 description: WiFi Config component with multi-network support, auto-reconnect, SoftAP captive portal, REST API, and ESP-IDF Network Provisioning over BLE
 url: https://github.com/WiFiConfig/esp_wifi_config
 repository: https://github.com/WiFiConfig/esp_wifi_config.git
 documentation: https://wificonfig.com
 issues: https://github.com/WiFiConfig/esp_wifi_config/issues
 license: MIT
+
+# The registry excludes dist directories by default, including these checked-in
+# assets required by CMake when the embedded web UI is enabled.
+files:
+  include:
+    - "frontend/dist/index.html"
+    - "frontend/dist/assets/app.js.gz"
+    - "frontend/dist/assets/index.css.gz"
 
 maintainers:
   - thorrak

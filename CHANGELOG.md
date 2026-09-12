@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.3.1~1] — 2026-09-12 - ESP Component Registry packaging revision
+
+### Fixed
+
+- Include the embedded web UI assets in ESP Component Registry archives. The
+  registry's default `dist` exclusion omitted these files, preventing ESP-IDF
+  builds with the bundled web UI. GitHub and PlatformIO packages include them
+  and remain at 0.3.1; this IDF-only packaging revision changes no library code.
+
 ## [0.3.1] — 2026-09-12 - Native Arduino and optional NimBLE-Arduino support
 
 ### Added
