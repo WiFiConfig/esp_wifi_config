@@ -40,7 +40,7 @@ and showed no resource benefit from switching. See the
 - **Provisioning lifecycle** — `ON_FAILURE` / `WHEN_UNPROVISIONED` / `MANUAL` start modes, configurable post-connect teardown delay, and three post-provisioning HTTP behaviours
 - **Reboot on successful BLE provisioning** (default on) — sidesteps `wifi_prov_mgr`'s lack of a clean BLE-stack tear-down/rebuild path; opt out via `prov_ble.disable_reboot_on_provisioning_success`
 - **Reconnect-exhaustion policy** — reboot after N failed reconnects, or retry indefinitely
-- **Embedded Web UI** — responsive Preact frontend (~10 KB gzipped) served on the captive portal, or [bring your own](https://wificonfig.com/docs/guides/custom-webui)
+- **Embedded Web UI** — responsive Preact frontend (~16 KB gzipped, English/German/Spanish/French/Vietnamese) served on the captive portal, or [bring your own](https://wificonfig.com/docs/guides/custom-webui)
 - **REST API** with optional HTTP Basic Auth
 - **Custom variable store** — application key/value settings flow through every provisioning interface
 - **Event-driven** on ESP-IDF's default event loop under `WIFI_CFG_EVENT` (connected, disconnected, got IP, provisioning started/stopped)

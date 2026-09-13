@@ -17,7 +17,7 @@ ESP WiFi Config is a WiFi configuration component for ESP-IDF that handles multi
 - **Multi-network support** — Save multiple WiFi networks with priority-based auto-connect
 - **Auto-reconnect** — Automatic retry with exponential backoff and failover between saved networks
 - **SoftAP mode** — Captive portal for initial configuration (triggers OS popup)
-- **Web UI** — Embedded responsive web interface (Preact-based, ~10KB gzipped)
+- **Web UI** — Embedded responsive web interface (Preact-based, ~16KB gzipped, five languages)
 - **CLI interface** — Serial console commands for configuration
 - **Network Provisioning over BLE** — ESP-IDF's official `wifi_prov_mgr` (BLE scheme), driven by Espressif's "ESP BLE Provisioning" mobile apps or `esp_prov`
 - **Improv WiFi** — Open standard provisioning via [Web Bluetooth](https://www.improv-wifi.com/) (mutually exclusive with Network Provisioning BLE) or Web Serial (Chrome/Edge)

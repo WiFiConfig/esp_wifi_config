@@ -1,0 +1,40 @@
+{
+  "app": {
+    "title": "Configuration WiFi ESP"
+  },
+  "status": {
+    "loading": "Chargement...",
+    "error": "Impossible de charger l'état",
+    "connected": "Connecté à \"{ssid}\"",
+    "disconnected": "Déconnecté"
+  },
+  "networks": {
+    "title": "Réseaux disponibles",
+    "scan": "Analyser",
+    "scanning": "Analyse...",
+    "empty": "Appuyez sur Analyser pour rechercher des réseaux",
+    "hidden": "(masqué)",
+    "cancel": "Annuler",
+    "connect": "Connecter",
+    "password": "Mot de passe",
+    "connectingTo": "Connexion à \"{ssid}\"...",
+    "connectingWait": "Cela peut prendre quelques secondes.",
+    "connectSuccess": "Connecté à \"{ssid}\"",
+    "connectSuccessIp": "Adresse IP : {ip}",
+    "connectFailed": "Échec de la connexion",
+    "connectFailedDesc": "Impossible de se connecter au réseau. Vérifiez le mot de passe et réessayez.",
+    "dismiss": "OK",
+    "retry": "Réessayer"
+  },
+  "saved": {
+    "title": "Réseaux enregistrés",
+    "cancel": "Annuler",
+    "add": "+ Ajouter",
+    "ssid": "SSID",
+    "passwordOptional": "Mot de passe (facultatif)",
+    "addNetwork": "Ajouter un réseau",
+    "loading": "Chargement...",
+    "empty": "Aucun réseau enregistré",
+    "priority": "Priorité : {priority}"
+  }
+}

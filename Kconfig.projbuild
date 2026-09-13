@@ -99,7 +99,7 @@ menu "WiFi Config"
         help
             Enable embedded Web UI for WiFi Config.
             Serves responsive web interface at root path (/).
-            Files are compressed with gzip (~10KB total).
+            Files are compressed with gzip (~16KB total).
 
             Requires the SoftAP portal: the Web UI is served by the same
             HTTP server.

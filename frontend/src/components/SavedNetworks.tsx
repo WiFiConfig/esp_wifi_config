@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
+import { useStore } from '@nanostores/preact';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { savedMessages } from '../i18n/messages/saved';
 import type { SavedNetwork } from '../types';
 import { api } from '../api/client';
 import './SavedNetworks.css';
@@ -53,12 +55,14 @@ export function SavedNetworks() {
     }
   };
 
+  const t = useStore(savedMessages);
+
   return (
     <Card
-      title="Saved Networks"
+      title={t.title}
       action={
         <Button size="sm" variant="secondary" onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? 'Cancel' : '+ Add'}
+          {showAdd ? t.cancel : t.add}
         </Button>
       }
     >
@@ -66,33 +70,33 @@ export function SavedNetworks() {
         <div class="add-network-form mb-4">
           <input
             type="text"
-            placeholder="SSID"
+            placeholder={t.ssid}
             value={ssid}
             onInput={(e) => setSsid((e.target as HTMLInputElement).value)}
           />
           <input
             type="password"
-            placeholder="Password (optional)"
+            placeholder={t.passwordOptional}
             value={password}
             onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
           />
           <Button onClick={handleAdd} loading={adding} class="w-full">
-            Add Network
+            {t.addNetwork}
           </Button>
         </div>
       )}
 
       {loading ? (
-        <div class="saved-empty">Loading...</div>
+        <div class="saved-empty">{t.loading}</div>
       ) : networks.length === 0 ? (
-        <div class="saved-empty">No saved networks</div>
+        <div class="saved-empty">{t.empty}</div>
       ) : (
         <div class="saved-list">
           {networks.map((net) => (
             <div class="saved-item" key={net.ssid}>
               <div class="saved-info">
                 <div class="saved-ssid">{net.ssid}</div>
-                <div class="text-sm text-muted">Priority: {net.priority}</div>
+                <div class="text-sm text-muted">{t.priority({ priority: String(net.priority) })}</div>
               </div>
               <Button size="sm" variant="ghost" onClick={() => handleDelete(net.ssid)}>
                 ×

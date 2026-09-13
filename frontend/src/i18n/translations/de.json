@@ -1,0 +1,40 @@
+{
+  "app": {
+    "title": "ESP WLAN-Konfiguration"
+  },
+  "status": {
+    "loading": "Laden...",
+    "error": "Status konnte nicht geladen werden",
+    "connected": "Verbunden mit \"{ssid}\"",
+    "disconnected": "Getrennt"
+  },
+  "networks": {
+    "title": "Verfügbare Netzwerke",
+    "scan": "Suchen",
+    "scanning": "Suche...",
+    "empty": "Klicken Sie auf Suchen, um Netzwerke zu finden",
+    "hidden": "(versteckt)",
+    "cancel": "Abbrechen",
+    "connect": "Verbinden",
+    "password": "Passwort",
+    "connectingTo": "Verbindung zu \"{ssid}\"...",
+    "connectingWait": "Dies kann einige Sekunden dauern.",
+    "connectSuccess": "Verbunden mit \"{ssid}\"",
+    "connectSuccessIp": "IP-Adresse: {ip}",
+    "connectFailed": "Verbindung fehlgeschlagen",
+    "connectFailedDesc": "Verbindung zum Netzwerk nicht möglich. Überprüfen Sie das Passwort und versuchen Sie es erneut.",
+    "dismiss": "OK",
+    "retry": "Erneut versuchen"
+  },
+  "saved": {
+    "title": "Gespeicherte Netzwerke",
+    "cancel": "Abbrechen",
+    "add": "+ Hinzufügen",
+    "ssid": "SSID",
+    "passwordOptional": "Passwort (optional)",
+    "addNetwork": "Netzwerk hinzufügen",
+    "loading": "Laden...",
+    "empty": "Keine gespeicherten Netzwerke",
+    "priority": "Priorität: {priority}"
+  }
+}

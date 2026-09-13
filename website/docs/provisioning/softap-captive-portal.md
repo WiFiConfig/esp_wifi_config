@@ -95,7 +95,7 @@ All detection probes redirect to the Web UI at the AP's IP address.
 
 ## Web UI
 
-Enable the embedded Web UI with `CONFIG_WIFI_CFG_ENABLE_WEBUI=y` in your sdkconfig. The Web UI is a Preact-based responsive interface (~10KB gzipped) that provides:
+Enable the embedded Web UI with `CONFIG_WIFI_CFG_ENABLE_WEBUI=y` in your sdkconfig. The Web UI is a Preact-based responsive interface (~16KB gzipped, with a language selector for English, German, Spanish, French and Vietnamese) that provides:
 
 - WiFi network scanning and selection
 - Saved network management

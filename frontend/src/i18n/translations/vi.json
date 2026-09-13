@@ -1,0 +1,40 @@
+{
+  "app": {
+    "title": "Cấu hình WiFi ESP"
+  },
+  "status": {
+    "loading": "Đang tải...",
+    "error": "Không thể tải trạng thái",
+    "connected": "Đã kết nối với \"{ssid}\"",
+    "disconnected": "Đã ngắt kết nối"
+  },
+  "networks": {
+    "title": "Mạng khả dụng",
+    "scan": "Quét",
+    "scanning": "Đang quét...",
+    "empty": "Nhấn Quét để tìm mạng",
+    "hidden": "(ẩn)",
+    "cancel": "Hủy",
+    "connect": "Kết nối",
+    "password": "Mật khẩu",
+    "connectingTo": "Đang kết nối đến \"{ssid}\"...",
+    "connectingWait": "Quá trình này có thể mất vài giây.",
+    "connectSuccess": "Đã kết nối với \"{ssid}\"",
+    "connectSuccessIp": "Địa chỉ IP: {ip}",
+    "connectFailed": "Kết nối thất bại",
+    "connectFailedDesc": "Không thể kết nối mạng. Kiểm tra mật khẩu và thử lại.",
+    "dismiss": "OK",
+    "retry": "Thử lại"
+  },
+  "saved": {
+    "title": "Mạng đã lưu",
+    "cancel": "Hủy",
+    "add": "+ Thêm",
+    "ssid": "SSID",
+    "passwordOptional": "Mật khẩu (tùy chọn)",
+    "addNetwork": "Thêm mạng",
+    "loading": "Đang tải...",
+    "empty": "Không có mạng đã lưu",
+    "priority": "Ưu tiên: {priority}"
+  }
+}

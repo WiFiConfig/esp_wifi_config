@@ -1,6 +1,7 @@
 {
-  "name": "esp-wifi-manager-ui",
+  "name": "esp-wifi-config-ui",
   "version": "1.0.0",
+  "private": true,
   "description": "Modern Web UI for ESP WiFi Config",
   "scripts": {
     "dev": "vite",
@@ -8,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@nanostores/i18n": "^1.2.2",
+    "@nanostores/persistent": "^1.3.3",
+    "@nanostores/preact": "^1.0.0",
+    "nanostores": "^1.1.0",
     "preact": "^10.19.3"
   },
   "devDependencies": {

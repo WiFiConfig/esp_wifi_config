@@ -7,7 +7,7 @@ Example demonstrating WiFi Config with embedded Web UI.
 - Modern responsive Web UI
 - Dark mode support (auto-detect)
 - Captive portal for initial setup
-- Embedded files (~10KB gzipped)
+- Embedded files (~16KB gzipped)
 
 ## Build & Flash
 

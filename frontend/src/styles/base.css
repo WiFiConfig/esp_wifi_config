@@ -59,3 +59,13 @@ input:focus {
   font-size: 1.25rem;
   font-weight: 600;
 }
+
+.language-selector {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}

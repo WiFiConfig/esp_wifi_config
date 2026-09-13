@@ -1,4 +1,6 @@
+import { useStore } from '@nanostores/preact';
 import { Card } from './ui/Card';
+import { statusMessages } from '../i18n/messages/status';
 import type { WifiStatus } from '../types';
 import './StatusCard.css';
 
@@ -20,10 +22,12 @@ function SignalBars({ quality }: { quality: number }) {
 }
 
 export function StatusCard({ status, loading }: Props) {
+  const t = useStore(statusMessages);
+
   if (loading) {
     return (
       <Card>
-        <div class="status-loading">Loading...</div>
+        <div class="status-loading">{t.loading}</div>
       </Card>
     );
   }
@@ -31,7 +35,7 @@ export function StatusCard({ status, loading }: Props) {
   if (!status) {
     return (
       <Card>
-        <div class="status-error">Unable to load status</div>
+        <div class="status-error">{t.error}</div>
       </Card>
     );
   }
@@ -54,7 +58,7 @@ export function StatusCard({ status, loading }: Props) {
         </div>
         <div class="status-info">
           <div class="status-state">
-            {isConnected ? `Connected to "${status.ssid}"` : 'Disconnected'}
+            {isConnected ? t.connected({ ssid: status.ssid }) : t.disconnected}
           </div>
           {isConnected && (
             <>

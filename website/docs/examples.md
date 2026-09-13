@@ -34,7 +34,7 @@ Adds serial console commands (`wifi status`, `wifi scan`, `wifi add`, etc.). Req
 
 ## [with_webui](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_webui)
 
-Enables the embedded Preact Web UI (~10KB gzipped) with `CONFIG_WIFI_CFG_ENABLE_WEBUI=y`. No additional code needed — the Web UI is served automatically at the device's IP (or `192.168.4.1` in AP mode). Supports dark mode and captive portal auto-open.
+Enables the embedded Preact Web UI (~16KB gzipped, five languages) with `CONFIG_WIFI_CFG_ENABLE_WEBUI=y`. No additional code needed — the Web UI is served automatically at the device's IP (or `192.168.4.1` in AP mode). Supports dark mode and captive portal auto-open.
 
 ---
 
