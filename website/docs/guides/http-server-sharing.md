@@ -157,4 +157,6 @@ wifi_cfg_init(&(wifi_cfg_config_t){
 });
 ```
 
-When enabled, all `/api/wifi/*` endpoints require HTTP Basic Auth. Your own custom endpoints are not affected.
+When enabled, all `/api/wifi/*` endpoints require HTTP Basic Auth and answer
+unauthenticated requests with a 401 plus a `WWW-Authenticate: Basic` challenge,
+so the browser prompts. Your own custom endpoints are not affected.

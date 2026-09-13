@@ -10,7 +10,9 @@ Base URL: `http://<device-ip>/api/wifi` (configurable via `api_base_path`)
 
 ## Authentication
 
-If `enable_auth = true` in the HTTP config, all endpoints require HTTP Basic Auth:
+If `enable_auth = true` in the HTTP config, all endpoints require HTTP Basic Auth.
+Unauthenticated requests get a 401 with `WWW-Authenticate: Basic realm="ESP WiFi Config"`,
+so browsers (and therefore the embedded Web UI) prompt for credentials:
 
 ```bash
 curl -u admin:password http://192.168.4.1/api/wifi/status
@@ -179,7 +181,7 @@ All errors return a JSON object with an `error` field:
 | HTTP Code | Description |
 |---|---|
 | 400 | Bad Request — Invalid JSON, missing required field |
-| 401 | Unauthorized — Authentication required |
+| 401 | Unauthorized — Authentication required (carries a `WWW-Authenticate: Basic` challenge) |
 | 404 | Not Found — Network or variable does not exist |
 | 500 | Internal Error — Operation failed |
 

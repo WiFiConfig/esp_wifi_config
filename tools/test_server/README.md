@@ -20,6 +20,7 @@ python3 tools/test_server/test_server.py [options]
 | `--config FILE` | JSON config file for custom networks and variables |
 | `--no-aps` | Start with no scan results |
 | `--no-vars` | Start with no variables |
+| `--auth USER:PASS` | Require HTTP Basic Auth on `/api/wifi/*` (like the device's `enable_auth`); a 401 carries `WWW-Authenticate` and OPTIONS preflights stay open |
 
 By default the server starts with 3 fake APs in scan results and 2 sample variables.
 

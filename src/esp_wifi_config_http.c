@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "cJSON.h"
 #include "esp_wifi_config_json.h"
+#include "esp_wifi_config_uri.h"
 #include "mbedtls/base64.h"
 #include <string.h>
 
@@ -134,6 +135,20 @@ static esp_err_t send_error(httpd_req_t *req, int code, const char *msg)
     add_cors_headers(req);
     httpd_resp_set_status(req, status);
     httpd_resp_set_type(req, "application/json");
+    if (code == 401) {
+        /* RFC 7235 4.1: a 401 MUST carry WWW-Authenticate. Without it a
+         * browser never shows its credentials prompt, so the embedded Web UI
+         * could not be used at all with enable_auth on. Only 401 gets it: a
+         * 403 from the pre-request hook is a refusal, not a request to
+         * authenticate, and a challenge there would loop the prompt.
+         *
+         * The realm is a fixed literal rather than the AP SSID because
+         * httpd_resp_set_hdr() keeps the pointer, not a copy, and the SSID can
+         * change under it. Expose-Headers lets a cross-origin script (the Web
+         * UI served from a dev host against a real device) read it too. */
+        httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"ESP WiFi Config\"");
+        httpd_resp_set_hdr(req, "Access-Control-Expose-Headers", "WWW-Authenticate");
+    }
 
     char buf[128];
     snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", msg);
@@ -333,23 +348,45 @@ static cJSON *read_json_body(httpd_req_t *req)
 }
 
 /**
- * @brief Copy the last '/'-separated segment of the request URI into @p out.
+ * @brief Decode the last '/'-separated segment of the request URI into @p out.
  *
- * @p out is zeroed first, so a segment longer than @p cap - 1 comes back
- * truncated and terminated.
+ * This is the one place a path parameter (:ssid, :key) is read, so it is also
+ * the one place it is percent-decoded. The Web UI sends
+ * encodeURIComponent(ssid), so "My Home WiFi" arrives as "My%20Home%20WiFi";
+ * before this decoded, such a network could be added but never deleted or
+ * updated over HTTP. See wcfg_uri_decode() for the '+' decision.
  *
- * @return true if a non-empty segment was found.
+ * On failure the matching 400 has already been sent and the caller must
+ * return ESP_OK without touching @p out, exactly as after check_api_access().
+ * A value that does not fit is refused, not truncated: @p cap is the size of
+ * the record field it will be compared against, and a truncated name would
+ * quietly match a different record.
+ *
+ * @param what  Parameter name for the error body ("ssid", "key").
+ * @return true if a non-empty, well-formed segment was decoded into @p out.
  */
-static bool uri_last_segment(httpd_req_t *req, char *out, size_t cap)
+static bool uri_path_param(httpd_req_t *req, char *out, size_t cap, const char *what)
 {
-    memset(out, 0, cap);
-
     const char *last_slash = strrchr(req->uri, '/');
-    if (last_slash && strlen(last_slash) > 1) {
-        strncpy(out, last_slash + 1, cap - 1);
-    }
+    const char *raw = last_slash ? last_slash + 1 : "";
+    char msg[48];
 
-    return out[0] != '\0';
+    switch (wcfg_uri_decode(raw, out, cap)) {
+        case WCFG_URI_DECODE_OK:
+            return true;
+        case WCFG_URI_DECODE_EMPTY:
+            snprintf(msg, sizeof(msg), "Missing %s", what);
+            break;
+        case WCFG_URI_DECODE_MALFORMED:
+            snprintf(msg, sizeof(msg), "Malformed %s encoding", what);
+            break;
+        case WCFG_URI_DECODE_TOO_LONG:
+        default:
+            snprintf(msg, sizeof(msg), "%s too long", what);
+            break;
+    }
+    send_error(req, 400, msg);
+    return false;
 }
 
 /**
@@ -521,10 +558,11 @@ static esp_err_t handler_delete_network(httpd_req_t *req)
         return ESP_OK;   /* the 401/403 was sent; see send_error() */
     }
     
-    // Extract SSID from URI
-    char ssid[32];
-    if (!uri_last_segment(req, ssid, sizeof(ssid))) {
-        return send_error(req, 400, "Missing ssid");
+    /* Sized to wifi_network_t.ssid: a 32-byte SSID is legal and storable
+     * via POST /networks, so the path must be able to name it too. */
+    char ssid[33];
+    if (!uri_path_param(req, ssid, sizeof(ssid), "ssid")) {
+        return ESP_OK;   /* the 400 was sent; see send_error() */
     }
 
     esp_err_t ret = wifi_cfg_remove_network(ssid);
@@ -542,10 +580,11 @@ static esp_err_t handler_put_network(httpd_req_t *req)
         return ESP_OK;   /* the 401/403 was sent; see send_error() */
     }
     
-    // Extract SSID from URI
-    char ssid[32];
-    if (!uri_last_segment(req, ssid, sizeof(ssid))) {
-        return send_error(req, 400, "Missing ssid");
+    /* Sized to wifi_network_t.ssid: a 32-byte SSID is legal and storable
+     * via POST /networks, so the path must be able to name it too. */
+    char ssid[33];
+    if (!uri_path_param(req, ssid, sizeof(ssid), "ssid")) {
+        return ESP_OK;   /* the 400 was sent; see send_error() */
     }
 
     cJSON *json = read_json_body(req);
@@ -806,10 +845,9 @@ static esp_err_t handler_put_var(httpd_req_t *req)
         return ESP_OK;   /* the 401/403 was sent; see send_error() */
     }
     
-    // Extract key from URI
-    char key[32];
-    if (!uri_last_segment(req, key, sizeof(key))) {
-        return send_error(req, 400, "Missing key");
+    char key[32];   /* sized to wifi_cfg_var_t.key */
+    if (!uri_path_param(req, key, sizeof(key), "key")) {
+        return ESP_OK;   /* the 400 was sent; see send_error() */
     }
 
     cJSON *json = read_json_body(req);
@@ -840,10 +878,9 @@ static esp_err_t handler_delete_var(httpd_req_t *req)
         return ESP_OK;   /* the 401/403 was sent; see send_error() */
     }
 
-    // Extract key from URI
-    char key[32];
-    if (!uri_last_segment(req, key, sizeof(key))) {
-        return send_error(req, 400, "Missing key");
+    char key[32];   /* sized to wifi_cfg_var_t.key */
+    if (!uri_path_param(req, key, sizeof(key), "key")) {
+        return ESP_OK;   /* the 400 was sent; see send_error() */
     }
 
     esp_err_t ret = wifi_cfg_del_var(key);

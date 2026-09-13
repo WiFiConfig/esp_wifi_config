@@ -3,23 +3,23 @@
 Mock HTTP server emulating esp_wifi_config API endpoints.
 
 Usage:
-    python3 tools/test_server/test_server.py [--port 8080] [--no-aps] [--no-vars]
+    python3 tools/test_server/test_server.py [--port 8080] [--no-aps] [--no-vars] [--auth USER:PASS]
     python3 tools/test_server/test_server.py --config tools/test_server/config.sample.json
 
 Requires: pip install -r tools/test_server/requirements.txt
 """
 
 import argparse
+import base64
 import copy
 import json
 import time
-from urllib.parse import unquote
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, expose_headers=["WWW-Authenticate"])
 
 # ---------------------------------------------------------------------------
 # Default state templates
@@ -127,7 +127,34 @@ def ok():
 
 
 def error(code, msg):
-    return jsonify({"error": msg}), code
+    resp = jsonify({"error": msg})
+    if code == 401:
+        # Mirrors src/esp_wifi_config_http.c send_error(): a 401 carries the
+        # challenge (only a 401 -- a 403 does not), so browsers prompt.
+        resp.headers["WWW-Authenticate"] = 'Basic realm="ESP WiFi Config"'
+    return resp, code
+
+
+@app.before_request
+def check_basic_auth():
+    """HTTP Basic Auth gate, active only with --auth USER:PASS.
+
+    OPTIONS is never gated: browsers send the CORS preflight without
+    credentials, and the device's OPTIONS catch-all is unauthenticated too.
+    """
+    if not cli_args or not cli_args.auth:
+        return None
+    if request.method == "OPTIONS" or not request.path.startswith("/api/wifi"):
+        return None
+    header = request.headers.get("Authorization", "")
+    if header.startswith("Basic "):
+        try:
+            creds = base64.b64decode(header[6:], validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            creds = None
+        if creds == cli_args.auth:
+            return None
+    return error(401, "Unauthorized")
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +258,6 @@ def post_networks():
 
 @app.route("/api/wifi/networks/<path:ssid>", methods=["PUT"])
 def put_network(ssid):
-    ssid = unquote(ssid)
     body = request.get_json(silent=True)
     if not body:
         return error(400, "Invalid JSON")
@@ -253,7 +279,6 @@ def put_network(ssid):
 
 @app.route("/api/wifi/networks/<path:ssid>", methods=["DELETE"])
 def delete_network(ssid):
-    ssid = unquote(ssid)
     for i, net in enumerate(state["networks"]):
         if net["ssid"] == ssid:
             state["networks"].pop(i)
@@ -364,7 +389,6 @@ def get_vars():
 
 @app.route("/api/wifi/vars/<key>", methods=["PUT"])
 def put_var(key):
-    key = unquote(key)
     body = request.get_json(silent=True)
     if not body or "value" not in body:
         return error(400, "Missing value")
@@ -391,7 +415,6 @@ def put_var(key):
 
 @app.route("/api/wifi/vars/<key>", methods=["DELETE"])
 def delete_var(key):
-    key = unquote(key)
     for i, var in enumerate(state["vars"]):
         if var["key"] == key:
             state["vars"].pop(i)
@@ -421,6 +444,8 @@ def main():
     parser.add_argument("--no-aps", action="store_true", help="Start with empty scan results")
     parser.add_argument("--no-vars", action="store_true", help="Start with no preconfigured variables")
     parser.add_argument("--config", type=str, metavar="FILE", help="JSON config file for networks/variables")
+    parser.add_argument("--auth", type=str, metavar="USER:PASS",
+                        help="Require HTTP Basic Auth with these credentials (device: enable_auth)")
     cli_args = parser.parse_args()
 
     init_state()
@@ -435,6 +460,8 @@ def main():
     print(f"  Port:       {cli_args.port}")
     if cli_args.config:
         print(f"  Config:     {cli_args.config}")
+    if cli_args.auth:
+        print(f"  Basic Auth: {cli_args.auth.split(':', 1)[0]}")
     print(f"  Scan APs:   {scan_count} APs")
     print(f"  Variables:  {var_count} vars")
     print(f"  Base URL:   http://localhost:{cli_args.port}/api/wifi")
