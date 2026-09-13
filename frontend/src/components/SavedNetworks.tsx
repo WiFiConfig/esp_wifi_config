@@ -7,7 +7,12 @@ import type { SavedNetwork } from '../types';
 import { api } from '../api/client';
 import './SavedNetworks.css';
 
-export function SavedNetworks() {
+interface Props {
+  /** Bump to reload the list, e.g. after NetworkList saved a network. */
+  refreshKey?: number;
+}
+
+export function SavedNetworks({ refreshKey = 0 }: Props = {}) {
   const [networks, setNetworks] = useState<SavedNetwork[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -28,7 +33,7 @@ export function SavedNetworks() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [refreshKey]);
 
   const handleAdd = async () => {
     if (!ssid.trim()) return;

@@ -14,6 +14,7 @@ import './styles/utilities.css';
 export function App() {
   const [status, setStatus] = useState<WifiStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savedVersion, setSavedVersion] = useState(0);
   const t = useStore(appMessages);
 
   const loadStatus = async () => {
@@ -41,8 +42,13 @@ export function App() {
       </header>
 
       <StatusCard status={status} loading={loading} />
-      <NetworkList onConnect={loadStatus} />
-      <SavedNetworks />
+      <NetworkList
+        onConnect={() => {
+          loadStatus();
+          setSavedVersion((v) => v + 1);
+        }}
+      />
+      <SavedNetworks refreshKey={savedVersion} />
     </div>
   );
 }
