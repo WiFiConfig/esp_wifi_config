@@ -120,7 +120,13 @@ for example by including this repo as a git submodule and aliasing
 
 ```ts
 // vite.config.ts (downstream)
-resolve: { alias: { '@wificonfig/ui': path.resolve(__dirname, 'esp_wifi_config/frontend/src') } }
+// A plain string alias resolves the bare import to a directory (EISDIR);
+// use two regex entries so '@wificonfig/ui' hits lib.ts and deep imports map to src/.
+const ui = path.resolve(__dirname, 'esp_wifi_config/frontend/src')
+resolve: { alias: [
+  { find: /^@wificonfig\/ui$/,      replacement: path.join(ui, 'lib.ts') },
+  { find: /^@wificonfig\/ui\/(.*)$/, replacement: path.join(ui, '$1') },
+] }
 // tsconfig.json (downstream)
 "paths": { "@wificonfig/ui": ["./esp_wifi_config/frontend/src/lib.ts"],
            "@wificonfig/ui/*": ["./esp_wifi_config/frontend/src/*"] }
