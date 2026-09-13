@@ -17,7 +17,7 @@ The Web UI source is selected at build time by two Kconfig keys:
 
 | Mode | Kconfig | Source of files |
 |---|---|---|
-| **Embedded Web UI** (default when enabled) | `WIFI_CFG_ENABLE_WEBUI=y`, `WIFI_CFG_WEBUI_CUSTOM_PATH=""` | Bundled Preact app (~10 KB gzipped) linked into the firmware via `EMBED_FILES` |
+| **Embedded Web UI** (default when enabled) | `WIFI_CFG_ENABLE_WEBUI=y`, `WIFI_CFG_WEBUI_CUSTOM_PATH=""` | Bundled Preact app (~16 KB gzipped) linked into the firmware via `EMBED_FILES` |
 | **Custom filesystem UI** | `WIFI_CFG_ENABLE_WEBUI=y`, `WIFI_CFG_WEBUI_CUSTOM_PATH="/littlefs"` | Files on the configured filesystem path |
 | **Simple fallback page** | `WIFI_CFG_ENABLE_WEBUI=n` | A built-in minimal HTML page with inline JS, just enough to add a network and connect |
 
@@ -40,6 +40,12 @@ must provide files that match:
 | `/` | `/index.html` | Main HTML document. `/` is internally remapped to `/index.html`. |
 | `/assets/app.js` | `/assets/app.js` or `/assets/app.js.gz` | JS bundle. Single-file output required (no code splitting). |
 | `/assets/index.css` | `/assets/index.css` or `/assets/index.css.gz` | CSS stylesheet. |
+
+These three are what `index.html` references and what the embedded fallback
+knows about. When serving from a filesystem the server registers a `/*`
+wildcard, so **any other file under `WEBUI_CUSTOM_PATH`** (fonts, images,
+extra chunks) is served too, with the same gzip rules. Paths longer than
+~120 characters including the base path are not served.
 
 ### Gzip handling
 
@@ -118,10 +124,12 @@ export default defineConfig({
 
 The non-negotiable bits are:
 
-- **`inlineDynamicImports: true`** — the HTTP server only serves three
-  fixed paths; dynamic chunks would be unreachable.
-- **Fixed `app.js` / `index.css` output names** — no content hashes,
-  since the server has hardcoded handlers for those exact URLs.
+- **`inlineDynamicImports: true`** — the embedded build has exactly three
+  fixed assets, so dynamic chunks would be unreachable there. A filesystem
+  build can serve extra files, but single-file output keeps the two paths
+  interchangeable.
+- **Fixed `app.js` / `index.css` output names** — no content hashes, since
+  `index.html` and the embedded asset table reference those exact URLs.
 
 The bundled frontend lives at [`frontend/`](https://github.com/WiFiConfig/esp_wifi_config/tree/main/frontend);
 its `vite.config.ts` is the canonical reference.
@@ -155,7 +163,7 @@ storage,  data, littlefs,,        512K,
 
 Adjust `factory` size for your firmware and pick a `storage` size that
 comfortably fits your assets (compressed). The bundled Preact UI is
-~10 KB gzipped, but a richer custom app can easily reach 100–200 KB.
+~16 KB gzipped, but a richer custom app can easily reach 100–200 KB.
 
 ### 3. Place frontend output
 
@@ -185,9 +193,9 @@ be in `idf_component.yml` for this CMake function to exist.
 idf.py build flash
 ```
 
-The library mounts the partition automatically when the HTTP server
-starts and serves files from `/littlefs/...` for any request matching
-the three fixed URLs.
+Your application mounts the partition (see `init_littlefs()` in the
+example's `main.c`) before starting WiFi Config. The library then serves
+`/littlefs/...` for any GET request the API does not handle.
 
 ## Iterating on the Frontend
 

@@ -7,6 +7,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-09-13 - Web UI translations and connection feedback
+
+### Added
+
+- Embedded Web UI is translated into English, German, Spanish, French and
+  Vietnamese, with a language selector that follows the browser locale and
+  remembers the choice. Adding a language is a JSON file plus two list entries
+  (`frontend/README.md`).
+- Web UI connection modal: after "Connect" the UI polls the device and shows
+  connecting / connected / failed with a retry, instead of failing silently.
+- `frontend/src/lib.ts` exports the UI's API client, i18n, stores and
+  components so an application can build a customised UI on top of the
+  library's without forking it (git submodule + Vite alias; see
+  `frontend/README.md`). A `registerTranslations()` hook lets that
+  application add its own translated namespaces.
+- `tools/test_server.py --auth USER:PASS` fakes Basic Auth.
+- Host test for URI percent-decoding (`test/uri_decode/run.sh`).
+
+### Changed
+
+- Embedded Web UI grows from ~10 KB to ~16 KB gzipped (nanostores runtime plus
+  four translation catalogs). Size claims updated across the docs.
+- Regenerated `src/arduino/webui_assets.h` for the new UI.
+- `benchmark_firmware/` is ignored like `test_harness/` (nested repo).
+
+### Fixed
+
+- `DELETE /networks/:ssid`, `PUT /vars/:key` and `DELETE /vars/:key` now
+  percent-decode the path segment. SSIDs or keys containing spaces or other
+  reserved characters could previously never be addressed from the Web UI,
+  which URL-encodes them. Malformed encodings and values that would overflow
+  the target buffer return 400 instead of being silently mangled; `+` is left
+  as-is (path segments are not form-encoded). A 32-byte SSID can now be deleted.
+- 401 responses carry `WWW-Authenticate: Basic realm="ESP WiFi Config"`, so
+  browsers prompt for credentials and the embedded Web UI works with
+  `enable_auth = true`. Preflight `OPTIONS` stays unauthenticated.
+- Custom Web UI docs: the library does not mount the filesystem (the
+  application does), there is no embedded fallback when
+  `WIFI_CFG_WEBUI_CUSTOM_PATH` is set, and any file under the custom path is
+  served, not just the three fixed assets.
+
 ## [0.3.1~1] — 2026-09-12 - ESP Component Registry packaging revision
 
 ### Fixed

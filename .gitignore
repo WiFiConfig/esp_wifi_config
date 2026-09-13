@@ -160,6 +160,7 @@ website/.docusaurus/
 # live inside this checkout. Nothing under it is tracked here, and ignoring it
 # is what stops `git add -A` from committing a nested repo by accident.
 test_harness/
+benchmark_firmware/
 
 # PlatformIO native Arduino example output
 .pio/

@@ -6,14 +6,16 @@ Example demonstrating WiFi Config with customizable frontend from LittleFS.
 
 - Custom frontend files served from LittleFS partition
 - Replace UI without recompiling firmware
-- Fallback to embedded Web UI if files not found
+- Embedded Web UI is compiled out when `WIFI_CFG_WEBUI_CUSTOM_PATH` is set (no fallback)
 - 512KB LittleFS partition for frontend files
 
 ## How It Works
 
-1. WiFi Config first checks `/littlefs/` for frontend files
-2. If found, serves custom files from LittleFS
-3. If not found, falls back to embedded Web UI
+1. `main.c` mounts the LittleFS partition at `/littlefs/`
+2. WiFi Config serves every GET request for a non-API path from `/littlefs/`
+   (plain or `.gz`, preferring `.gz`)
+3. A missing file returns 404 — the embedded Web UI is not linked in when
+   `WIFI_CFG_WEBUI_CUSTOM_PATH` is set, so test the filesystem image
 
 ## Build & Flash
 
