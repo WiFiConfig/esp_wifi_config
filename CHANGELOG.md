@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+
+- `handler_simple_page()` was defined unconditionally but only used with the
+  Web UI off, so every `CONFIG_WIFI_CFG_ENABLE_WEBUI=y` build emitted an
+  unused-function warning from the component. It is now guarded on the same
+  symbol as its only caller.
+
 ## [0.4.0] — 2026-09-13 - Application-provided Web UI
 
 ### Added
