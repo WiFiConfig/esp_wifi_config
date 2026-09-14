@@ -25,6 +25,7 @@ jobs:
           - with_shared_httpd
           - with_webui
           - with_webui_customize
+          - with_webui_app_assets
         idf_target:
           - esp32
           - esp32s3

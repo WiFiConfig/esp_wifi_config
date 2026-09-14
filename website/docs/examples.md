@@ -40,9 +40,15 @@ Enables the embedded Preact Web UI (~16KB gzipped, five languages) with `CONFIG_
 
 ## [with_webui_customize](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_webui_customize)
 
-Serves a custom frontend from a LittleFS partition instead of the embedded UI. Requires a custom partition table with a 512 KB LittleFS partition and `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH="/littlefs"`. With the custom path set, the embedded Preact assets are excluded from the build — your filesystem image must provide `index.html`, `assets/app.js` (or `.js.gz`), and `assets/index.css` (or `.css.gz`).
+Serves a custom frontend from a LittleFS partition instead of the embedded UI. Requires a custom partition table with a 512 KB LittleFS partition, `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y` and `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH="/littlefs"`. With the filesystem source selected, the embedded Preact assets are excluded from the build — your filesystem image must provide `index.html`, `assets/app.js` (or `.js.gz`), and `assets/index.css` (or `.css.gz`).
 
 See the [Custom Web UI guide](./guides/custom-webui.md) for the full workflow (partition table, Vite config, gzip handling, captive-portal interaction).
+
+---
+
+## [with_webui_app_assets](https://github.com/WiFiConfig/esp_wifi_config/tree/main/examples/with_webui_app_assets)
+
+A custom Web UI **embedded in the application's own firmware image** and served through the library. `CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y` keeps the library from linking in any frontend; the example's `main/CMakeLists.txt` embeds a small vanilla-JS UI with `EMBED_FILES` and `main.c` registers `wifi_cfg_webui_set_asset_provider()` to hand the bytes over on request. No filesystem partition, and the UI rides along with every OTA. Same mechanism under PlatformIO via `board_build.embed_files`.
 
 ---
 

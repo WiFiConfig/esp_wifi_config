@@ -23,8 +23,8 @@ Currently only 3 hardcoded URI handlers exist (`/`, `/assets/app.js`,
 
 **Proposal:**
 
-**Wildcard file serving:** When `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` is
-set, register a low-priority wildcard handler that calls
+**Wildcard file serving:** When `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM` is
+selected, register a low-priority wildcard handler that calls
 `serve_from_filesystem()` for any unmatched path under the WebUI prefix.
 The content-type detection logic already exists — extend it to cover a
 few additional types (`.woff2`, `.ico`, `.jpg`/`.jpeg`).

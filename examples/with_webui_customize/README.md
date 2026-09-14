@@ -6,7 +6,7 @@ Example demonstrating WiFi Config with customizable frontend from LittleFS.
 
 - Custom frontend files served from LittleFS partition
 - Replace UI without recompiling firmware
-- Embedded Web UI is compiled out when `WIFI_CFG_WEBUI_CUSTOM_PATH` is set (no fallback)
+- `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y`: the library's embedded Web UI is compiled out (no fallback)
 - 512KB LittleFS partition for frontend files
 
 ## How It Works
@@ -14,8 +14,11 @@ Example demonstrating WiFi Config with customizable frontend from LittleFS.
 1. `main.c` mounts the LittleFS partition at `/littlefs/`
 2. WiFi Config serves every GET request for a non-API path from `/littlefs/`
    (plain or `.gz`, preferring `.gz`)
-3. A missing file returns 404 — the embedded Web UI is not linked in when
-   `WIFI_CFG_WEBUI_CUSTOM_PATH` is set, so test the filesystem image
+3. A missing file returns 404 — the embedded Web UI is not linked in with the
+   filesystem source selected, so test the filesystem image
+
+To embed a custom UI in the firmware image instead (no filesystem partition,
+ships with every OTA), see the `with_webui_app_assets` example.
 
 ## Build & Flash
 
@@ -45,7 +48,7 @@ idf.py build flash monitor
 ```
 
 This will:
-1. Build the firmware with embedded Web UI
+1. Build the firmware (no Web UI assets inside it)
 2. Create LittleFS image from `www/` directory
 3. Flash everything including custom frontend
 

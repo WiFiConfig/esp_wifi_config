@@ -58,7 +58,7 @@ which sources are compiled use the following Arduino-specific options:
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `WIFI_CFG_ARDUINO_SOFTAP` | `1` | Captive portal, DNS and HTTP API |
-| `WIFI_CFG_ARDUINO_WEBUI` | Same as SoftAP | Embedded frontend |
+| `WIFI_CFG_ARDUINO_WEBUI` | Same as SoftAP | Embedded frontend. `wifi_cfg_webui_set_asset_provider()` can serve the application's own files ahead of it |
 | `WIFI_CFG_ARDUINO_PROV_BLE` | `0` | Espressif provisioning with the existing custom endpoints |
 | `WIFI_CFG_ARDUINO_IMPROV_BLE` | `0` | Improv BLE, alternative to Espressif provisioning |
 | `WIFI_CFG_ARDUINO_IMPROV_SERIAL` | `0` | Improv using an application-supplied `Stream` |

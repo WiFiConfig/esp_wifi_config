@@ -65,8 +65,12 @@ return `ESP_ERR_NOT_SUPPORTED`, so application code keeps compiling;
 
 | Option | Default | Description |
 |---|---|---|
-| `CONFIG_WIFI_CFG_ENABLE_WEBUI` | n | Enable the embedded Web UI. **Requires `CONFIG_WIFI_CFG_ENABLE_SOFTAP`** — the Web UI is served by the portal's HTTP server |
-| `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` | "" | Path to custom frontend files (LittleFS/SPIFFS). Requires `CONFIG_WIFI_CFG_ENABLE_WEBUI` |
+| `CONFIG_WIFI_CFG_ENABLE_WEBUI` | n | Serve a Web UI at `/`. **Requires `CONFIG_WIFI_CFG_ENABLE_SOFTAP`** — the Web UI is served by the portal's HTTP server |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE` (choice) | `EMBEDDED` | Where the Web UI files come from. Exactly one of the three below is set. Requires `CONFIG_WIFI_CFG_ENABLE_WEBUI` |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED` | y | The library's bundled Preact UI, linked into the firmware |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION` | n | The application embeds its own UI and registers `wifi_cfg_webui_set_asset_provider()`. Nothing embedded by the library |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM` | n | Serve from `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` on LittleFS/SPIFFS. Nothing embedded by the library |
+| `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` | "" | Mount point for the filesystem source, e.g. `"/littlefs"`. Must be set with `SOURCE_FILESYSTEM`; the component CMake fails the build if it is set with any other source (it used to be what selected the filesystem mode) |
 
 ## Network Provisioning (BLE)
 
@@ -114,6 +118,16 @@ assignment to it is dropped without a warning.
 ```kconfig
 CONFIG_WIFI_CFG_ENABLE_WEBUI=y
 ```
+
+### WiFi + your own Web UI embedded in the firmware
+
+```kconfig
+CONFIG_WIFI_CFG_ENABLE_WEBUI=y
+CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y
+```
+
+The application registers `wifi_cfg_webui_set_asset_provider()`; see the
+[Custom Web UI guide](../guides/custom-webui).
 
 ### WiFi + Network Provisioning over BLE (NimBLE, recommended)
 

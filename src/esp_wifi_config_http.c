@@ -1223,13 +1223,10 @@ esp_err_t wifi_cfg_http_unregister_provisioning_handlers(void)
     // Unregister Web UI or simple page
 #ifdef CONFIG_WIFI_CFG_ENABLE_WEBUI
     httpd_unregister_uri_handler(httpd, "/", HTTP_GET);
-    /* No unregister for /assets/app.js or /assets/index.css: those are rows in
-     * webui.c's embedded_assets[] table, served by the wildcard handler below,
-     * never registered as URI handlers of their own. */
-    /* Wildcard handler for additional static files. Unconditional, because
-     * wifi_cfg_webui_init() registers it unconditionally: the guard that used
-     * to be here was on CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH, a Kconfig `string`
-     * with `default ""` that is always defined once the Web UI is on. */
+    /* No unregister for /assets/app.js or /assets/index.css: every asset other
+     * than / is answered by the wildcard handler below, whatever the source
+     * (embedded table, filesystem, application provider). wifi_cfg_webui_init()
+     * registers both handlers unconditionally in every Web UI mode. */
     httpd_unregister_uri_handler(httpd, "/*", HTTP_GET);
 #else
     httpd_unregister_uri_handler(httpd, "/", HTTP_GET);

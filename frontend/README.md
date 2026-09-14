@@ -203,7 +203,9 @@ firmware. Measured sizes for the current build:
 | `assets/index.css` | 7.6 KB | 2.0 KB |
 | **Embedded total** | | **15.6 KB** |
 
-After a build, regenerate the Arduino header so the embedded copy matches:
+After a build, regenerate the C-array header so the embedded copy matches. It
+is what Arduino and PlatformIO builds (no component CMake, so no `EMBED_FILES`)
+link instead of the linker symbols:
 
 ```bash
 python3 tools/generate_arduino_assets.py          # writes src/arduino/webui_assets.h

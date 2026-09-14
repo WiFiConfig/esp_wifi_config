@@ -19,6 +19,7 @@ else()
 endif()
 
 set(SRCS
+    "src/esp_wifi_config_webui.c"
     "src/esp_wifi_config.c"
     "src/esp_wifi_config_network.c"
     # Stays unconditional even with the SoftAP portal off: it also holds the
@@ -75,19 +76,42 @@ set(EMBED_FILES)
 # prov-BLE backend, which brings its own), so libjson.a contributes zero symbols
 # and the linker drops the archive, taking newlib's strtod/mprec/gdtoa with it.
 
-# Add Web UI if enabled (Kconfig makes this depend on WIFI_CFG_ENABLE_SOFTAP —
-# the Web UI is served by the portal's HTTP server)
-set(WIFI_CFG_WEBUI_EMBEDDED NO)
+# Web UI. The source file is compiled unconditionally: it carries the
+# ESP_ERR_NOT_SUPPORTED stub for wifi_cfg_webui_set_asset_provider() when the
+# Web UI is off, so application code keeps linking. Kconfig makes the Web UI
+# depend on WIFI_CFG_ENABLE_SOFTAP (it is served by the portal's HTTP server).
+#
+# Which assets get linked in is the WIFI_CFG_WEBUI_SOURCE choice:
+#   EMBEDDED    -- the library's frontend/dist via EMBED_FILES (below)
+#   FILESYSTEM  -- nothing embedded; served from WIFI_CFG_WEBUI_CUSTOM_PATH
+#   APPLICATION -- nothing embedded; the application registers a provider
+set(WIFI_CFG_WEBUI_EMBED_FILES NO)
 if(CONFIG_WIFI_CFG_ENABLE_WEBUI)
-    list(APPEND SRCS "src/esp_wifi_config_webui.c")
-    # Embed gzipped frontend files
-    if(NOT CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH)
-        set(WIFI_CFG_WEBUI_EMBEDDED YES)
+    if(CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED)
+        set(WIFI_CFG_WEBUI_EMBED_FILES YES)
         list(APPEND EMBED_FILES
             "frontend/dist/index.html"
             "frontend/dist/assets/app.js.gz"
             "frontend/dist/assets/index.css.gz"
         )
+    endif()
+
+    # The path string is visible in every mode precisely so these checks can
+    # run. A non-empty path used to be what selected the filesystem mode; a
+    # config carrying one without the matching choice is a leftover from that.
+    if(CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH AND NOT CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM)
+        message(FATAL_ERROR
+            "esp_wifi_config: CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH is set to "
+            "\"${CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH}\" but the Web UI source is not the "
+            "filesystem. The source is now the CONFIG_WIFI_CFG_WEBUI_SOURCE choice: "
+            "add CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y to keep serving from that "
+            "path, or drop the path. See MIGRATION.md.")
+    endif()
+    if(CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM AND NOT CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH)
+        message(FATAL_ERROR
+            "esp_wifi_config: CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y needs "
+            "CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH set to the mount point the UI files "
+            "live under, e.g. \"/littlefs\".")
     endif()
 endif()
 
@@ -134,21 +158,17 @@ idf_component_register(
     EMBED_FILES ${EMBED_FILES}
 )
 
-# Tell the C side whether the frontend assets were actually embedded.
+# Tell the C side that the frontend assets arrived via EMBED_FILES, i.e. that
+# the _binary_*_start/_end linker symbols exist. Without this define the
+# embedded mode falls back to src/arduino/webui_assets.h, the same bytes as a
+# C array -- which is how Arduino and PlatformIO builds (no component CMake)
+# get the bundled UI.
 #
-# This has to come from CMake because the preprocessor cannot answer it.
-# CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH is a Kconfig `string` with `default ""`,
-# so it is *always* defined -- `#ifndef` on it is false even when no custom
-# path is set. The webui source used exactly that guard, so in every ordinary
-# build the embedded asset table and serve_embedded() were compiled out while
-# the assets themselves were embedded and referenced by nothing. `/` returned
-# 404, which is where all eight captive-portal handlers redirect.
-#
-# CMake gets it right (an empty string is falsy here), and it is the half that
-# decides EMBED_FILES, so it is the half that should say so.
-if(WIFI_CFG_WEBUI_EMBEDDED)
+# Whether to embed at all is decided from CONFIG_WIFI_CFG_WEBUI_SOURCE_*, which
+# the preprocessor can read directly. Only the *mechanism* needs CMake's word.
+if(WIFI_CFG_WEBUI_EMBED_FILES)
     idf_component_get_property(lib ${COMPONENT_NAME} COMPONENT_LIB)
-    target_compile_definitions(${lib} PRIVATE WIFI_CFG_WEBUI_EMBEDDED=1)
+    target_compile_definitions(${lib} PRIVATE WIFI_CFG_WEBUI_EMBED_FILES=1)
 endif()
 
 # Add CLI support after component registration.

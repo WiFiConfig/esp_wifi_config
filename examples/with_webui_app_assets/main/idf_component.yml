@@ -1,0 +1,4 @@
+dependencies:
+  esp_wifi_config:
+    version: "*"
+    path: "../../.."

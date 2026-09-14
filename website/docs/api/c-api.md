@@ -155,6 +155,36 @@ httpd_handle_t wifi_cfg_get_httpd(void);
 esp_err_t wifi_cfg_stop_http(void);
 ```
 
+## Web UI
+
+```c
+// One asset handed back by a provider. Bytes must outlive the firmware
+// (flash-resident arrays); the library sends straight from `data`.
+typedef struct {
+    const uint8_t *data;
+    size_t len;
+    bool gzipped;              // library adds Content-Encoding: gzip
+    const char *content_type;  // NULL: inferred from the path's extension
+} wifi_cfg_webui_asset_t;
+
+// Called on the HTTP task for every non-API GET. `path` has "/" already
+// remapped to "/index.html". Return true to serve `out`, false to decline.
+typedef bool (*wifi_cfg_webui_asset_provider_t)(const char *path,
+                                                wifi_cfg_webui_asset_t *out,
+                                                void *ctx);
+
+// Serve the Web UI from assets the application owns. Consulted first in
+// every Web UI mode; the only source under
+// CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION. May be called before
+// wifi_cfg_init(); survives provisioning stop/restart. NULL clears.
+// Returns ESP_ERR_NOT_SUPPORTED when the Web UI is compiled out.
+esp_err_t wifi_cfg_webui_set_asset_provider(wifi_cfg_webui_asset_provider_t provider,
+                                            void *ctx);
+```
+
+See the [Custom Web UI guide](../guides/custom-webui) for embedding the
+files and a complete provider.
+
 ## Configuration Struct
 
 The `wifi_cfg_config_t` struct controls all behavior. **Always start from

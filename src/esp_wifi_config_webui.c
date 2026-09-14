@@ -1,6 +1,22 @@
 /**
  * @file esp_wifi_config_webui.c
- * @brief Embedded Web UI serving for WiFi Config
+ * @brief Web UI serving for WiFi Config
+ *
+ * The library owns the routes ("/" and the slash-star wildcard, registered for the
+ * lifetime of provisioning by esp_wifi_config_http.c); this file decides
+ * where the bytes come from. The chain for every GET is:
+ *
+ *   1. application asset provider (wifi_cfg_webui_set_asset_provider())
+ *   2. the compiled-in source selected by CONFIG_WIFI_CFG_WEBUI_SOURCE_*:
+ *        EMBEDDED    the library's frontend/dist, linked into the firmware
+ *        FILESYSTEM  files under CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH
+ *        APPLICATION nothing -- the provider is the only source
+ *   3. 404
+ *
+ * Every mode decision here is made from CONFIG_* symbols so the same source
+ * builds identically under idf.py, PlatformIO and Arduino. The one CMake-fed
+ * define, WIFI_CFG_WEBUI_EMBED_FILES, only says *how* the embedded bytes
+ * arrived (EMBED_FILES linker symbols vs. the generated C header).
  */
 
 #include "esp_wifi_config_priv.h"
@@ -12,20 +28,22 @@
 
 static const char *TAG = "wifi_cfg_webui";
 
-/**
- * @brief Get the filesystem base path for custom WebUI files
- *
- * Returns the CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH if set, NULL otherwise.
- */
-static const char *get_fs_base_path(void)
+// =============================================================================
+// Application asset provider
+// =============================================================================
+
+/* File-level statics rather than g_wifi_cfg: the application may register
+ * before wifi_cfg_init(), and the registration has to survive provisioning
+ * stop / restart (which re-registers the URI handlers but not this). */
+static wifi_cfg_webui_asset_provider_t s_asset_provider = NULL;
+static void *s_asset_provider_ctx = NULL;
+
+esp_err_t wifi_cfg_webui_set_asset_provider(wifi_cfg_webui_asset_provider_t provider, void *ctx)
 {
-#ifdef CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH
-    const char *path = CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH;
-    if (path && path[0]) {
-        return path;
-    }
-#endif
-    return NULL;
+    s_asset_provider = provider;
+    s_asset_provider_ctx = provider ? ctx : NULL;
+    ESP_LOGI(TAG, "Asset provider %s", provider ? "registered" : "cleared");
+    return ESP_OK;
 }
 
 /**
@@ -49,15 +67,47 @@ static const char *get_content_type(const char *filepath)
     return "text/plain";
 }
 
+static bool serve_from_provider(httpd_req_t *req, const char *filepath)
+{
+    if (!s_asset_provider) {
+        return false;
+    }
+
+    wifi_cfg_webui_asset_t asset = { 0 };
+    if (!s_asset_provider(filepath, &asset, s_asset_provider_ctx)) {
+        return false;
+    }
+    if (!asset.data) {
+        ESP_LOGW(TAG, "Asset provider accepted %s but returned no data", filepath);
+        return false;
+    }
+
+    httpd_resp_set_type(req, asset.content_type ? asset.content_type : get_content_type(filepath));
+    if (asset.gzipped) {
+        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    }
+    httpd_resp_send(req, (const char *)asset.data, asset.len);
+    ESP_LOGD(TAG, "Served from application provider: %s", filepath);
+    return true;
+}
+
+// =============================================================================
+// Filesystem source
+// =============================================================================
+
+#ifdef CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM
+
+static const char *get_fs_base_path(void)
+{
+    return CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH;
+}
+
 /**
- * @brief Try to serve file from custom filesystem path (SPIFFS/LittleFS)
+ * @brief Try to serve file from the configured filesystem path (SPIFFS/LittleFS)
  */
 static bool serve_from_filesystem(httpd_req_t *req, const char *filepath)
 {
     const char *base_path = get_fs_base_path();
-    if (!base_path) {
-        return false;
-    }
 
     char fullpath[128];
     snprintf(fullpath, sizeof(fullpath), "%s%s", base_path, filepath);
@@ -101,25 +151,26 @@ static bool serve_from_filesystem(httpd_req_t *req, const char *filepath)
     return true;
 }
 
-/* Guarded on WIFI_CFG_WEBUI_EMBEDDED, which CMakeLists.txt defines when it
- * actually put these files in EMBED_FILES.
- *
- * NOT on CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH. That is a Kconfig `string` with
- * `default ""`, so it is always *defined* and `#ifndef` on it is always
- * false -- which compiled this whole table out of every ordinary build while
- * CMake went on embedding the files, because an empty string is falsy there.
- * The assets shipped and nothing could reach them. */
-#ifdef WIFI_CFG_WEBUI_EMBEDDED
-#ifdef ARDUINO_ARCH_ESP32
-#include "arduino/webui_assets.h"
-#else
-// Embedded files (linked via CMakeLists.txt EMBED_FILES)
+#endif // CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM
+
+// =============================================================================
+// Embedded source (the library's own frontend)
+// =============================================================================
+
+#ifdef CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED
+
+#ifdef WIFI_CFG_WEBUI_EMBED_FILES
+// Component CMake put frontend/dist in EMBED_FILES: use the linker symbols.
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t app_js_gz_start[] asm("_binary_app_js_gz_start");
 extern const uint8_t app_js_gz_end[] asm("_binary_app_js_gz_end");
 extern const uint8_t index_css_gz_start[] asm("_binary_index_css_gz_start");
 extern const uint8_t index_css_gz_end[] asm("_binary_index_css_gz_end");
+#else
+// No component CMake ran (Arduino, PlatformIO): the same bytes as a C array,
+// generated from frontend/dist by tools/generate_arduino_assets.py.
+#include "arduino/webui_assets.h"
 #endif
 
 static const struct {
@@ -148,13 +199,18 @@ static bool serve_embedded(httpd_req_t *req, const char *filepath)
     }
     return false;
 }
-#endif // WIFI_CFG_WEBUI_EMBEDDED
+
+#endif // CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED
+
+// =============================================================================
+// Handler
+// =============================================================================
 
 /**
  * @brief Unified handler for all Web UI static files
  *
- * Serves files by trying the filesystem first, then falling back to
- * embedded content (when available). Remaps "/" to "/index.html".
+ * Application provider first, then the compiled-in source. Remaps "/" to
+ * "/index.html".
  */
 static esp_err_t handler_webui_static(httpd_req_t *req)
 {
@@ -164,19 +220,26 @@ static esp_err_t handler_webui_static(httpd_req_t *req)
         filepath = "/index.html";
     }
 
+    if (serve_from_provider(req, filepath)) {
+        return ESP_OK;
+    }
+
+#ifdef CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM
     if (serve_from_filesystem(req, filepath)) {
         return ESP_OK;
     }
-
-#ifdef WIFI_CFG_WEBUI_EMBEDDED
+    ESP_LOGW(TAG, "404 Not Found: uri=%s (tried %s%s)", req->uri, get_fs_base_path(), filepath);
+#elif defined(CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED)
     if (serve_embedded(req, filepath)) {
         return ESP_OK;
     }
+    ESP_LOGW(TAG, "404 Not Found: uri=%s (not an embedded asset)", req->uri);
+#else
+    ESP_LOGW(TAG, "404 Not Found: uri=%s (%s)", req->uri,
+             s_asset_provider ? "application provider declined"
+                              : "no asset provider registered; see wifi_cfg_webui_set_asset_provider()");
 #endif
 
-    const char *base = get_fs_base_path();
-    ESP_LOGW(TAG, "404 Not Found: uri=%s (tried %s%s)",
-             req->uri, base ? base : "", filepath);
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, NULL);
     return ESP_FAIL;
 }
@@ -189,9 +252,6 @@ esp_err_t wifi_cfg_webui_init(httpd_handle_t httpd)
     if (!httpd) {
         return ESP_ERR_INVALID_ARG;
     }
-
-    ESP_LOGI(TAG, "Initializing Web UI (fs_path: %s)",
-             get_fs_base_path() ? get_fs_base_path() : "(embedded only)");
 
     httpd_uri_t index_uri = {
         .uri = "/",
@@ -207,25 +267,52 @@ esp_err_t wifi_cfg_webui_init(httpd_handle_t httpd)
     };
     httpd_register_uri_handler(httpd, &wildcard_uri);
 
-#ifdef WIFI_CFG_WEBUI_EMBEDDED
+#ifdef CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED
     size_t total_size = (index_html_end - index_html_start) +
                         (app_js_gz_end - app_js_gz_start) +
                         (index_css_gz_end - index_css_gz_start);
-    ESP_LOGI(TAG, "Web UI registered (embedded size: %zu bytes)", total_size);
+    ESP_LOGI(TAG, "Web UI registered (source: embedded, %zu bytes%s)", total_size,
+             s_asset_provider ? ", application provider first" : "");
+#elif defined(CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM)
+    ESP_LOGI(TAG, "Web UI registered (source: filesystem %s%s)", get_fs_base_path(),
+             s_asset_provider ? ", application provider first" : "");
 #else
-    ESP_LOGI(TAG, "Web UI registered (serving from filesystem: %s)",
-             CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH);
+    if (s_asset_provider) {
+        ESP_LOGI(TAG, "Web UI registered (source: application provider)");
+    } else {
+        ESP_LOGW(TAG, "Web UI registered with CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION but no "
+                      "asset provider is registered; every page will 404 until "
+                      "wifi_cfg_webui_set_asset_provider() is called");
+    }
+#endif
+
+#if defined(CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH) && !defined(CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM)
+    /* Kconfig keeps the path visible in every mode so a stale one can be
+     * reported. The component CMake refuses to build in this state; this
+     * catches builds that never ran it (PlatformIO). */
+    if (CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH[0] != '\0') {
+        ESP_LOGW(TAG, "CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH=\"%s\" is ignored: the Web UI source is not "
+                      "the filesystem (select CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y to use it)",
+                 CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH);
+    }
 #endif
 
     return ESP_OK;
 }
 
-#else
+#else // !CONFIG_WIFI_CFG_ENABLE_WEBUI
 
 esp_err_t wifi_cfg_webui_init(httpd_handle_t httpd)
 {
     (void)httpd;
     return ESP_OK;
+}
+
+esp_err_t wifi_cfg_webui_set_asset_provider(wifi_cfg_webui_asset_provider_t provider, void *ctx)
+{
+    (void)provider;
+    (void)ctx;
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 #endif // CONFIG_WIFI_CFG_ENABLE_WEBUI

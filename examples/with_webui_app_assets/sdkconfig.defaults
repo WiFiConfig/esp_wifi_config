@@ -1,0 +1,6 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+# Web UI on, with the application supplying the assets. The library links in
+# no frontend of its own; main.c registers an asset provider.
+CONFIG_WIFI_CFG_ENABLE_WEBUI=y
+CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y

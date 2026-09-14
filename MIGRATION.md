@@ -1,8 +1,8 @@
 # Migration Guide
 
 This document tracks breaking changes that affect downstream firmware
-using `esp_wifi_config`. The first section covers the most recent changes
-(the `esp_bus` dependency removed, `WIFI_CFG_DEFAULTS`, and the enum
+using `esp_wifi_config`. The first section covers the Web UI source
+becoming a Kconfig choice; then the `esp_bus` dependency removed, `WIFI_CFG_DEFAULTS`, and the enum
 renumbering); then 0.1.0 (custom BLE replaced by ESP-IDF Network
 Provisioning); the rest covers the historic rename from
 `esp_wifi_manager`.
@@ -11,6 +11,66 @@ Note that the event constants were renamed twice. Anything below that
 names `WIFI_CFG_EVT_*` describes an older migration; those names no
 longer exist. See "The `esp_bus` dependency is gone" for the current
 `WIFI_CFG_EVENT_*` enum.
+
+---
+
+## 0.4.0 — the Web UI source is a Kconfig choice
+
+### What changed
+
+The Web UI's file source used to be inferred from a string: an empty
+`CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` meant "embed the library's UI", a
+non-empty one meant "serve from that filesystem path". That encoding is
+replaced by an explicit choice, `CONFIG_WIFI_CFG_WEBUI_SOURCE`, with
+three values:
+
+| Symbol | Meaning |
+|---|---|
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED` (default) | The library's bundled UI, linked into the firmware |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM` | Files under `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` |
+| `CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION` | **New.** The application embeds its own UI and registers `wifi_cfg_webui_set_asset_provider()` |
+
+`CONFIG_WIFI_CFG_ENABLE_WEBUI` is unchanged. `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH`
+still exists, but only means something with the filesystem source.
+
+### Who is affected
+
+Only projects that set `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH`. Everyone else
+gets the default (embedded) and nothing changes.
+
+### What to do
+
+Add the filesystem choice next to the path:
+
+```diff
+ CONFIG_WIFI_CFG_ENABLE_WEBUI=y
++CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y
+ CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH="/littlefs"
+```
+
+You will not miss it: the component's CMake refuses to configure when a
+non-empty path is present without the filesystem source, naming the fix.
+Builds that do not run the component CMake (PlatformIO) log a warning at
+Web UI init instead and serve the embedded UI.
+
+### Why
+
+The string encoding already shipped one bug (the embedded asset table
+compiled out of every build because `#ifndef` on an always-defined
+Kconfig string is always false). Adding a third mode as another bool would
+have multiplied the meaningless combinations. A choice makes them
+inexpressible, and lets the C code read the mode straight from
+`CONFIG_*` without CMake's help — which is what makes the application
+source work identically under `idf.py` and PlatformIO.
+
+### The new mode
+
+`CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y` plus
+`wifi_cfg_webui_set_asset_provider()` lets firmware ship its own Web UI
+inside the app image, with the library still owning the routes, the
+captive-portal redirects and the provisioning lifecycle. See
+`website/docs/guides/custom-webui.md` and
+`examples/with_webui_app_assets/`.
 
 ---
 

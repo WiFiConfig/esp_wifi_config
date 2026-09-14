@@ -130,6 +130,9 @@ Q5a: SOFTAP SETTINGS (if SoftAP selected)
   Ask: Enable the enhanced Web UI? Adds an embedded Preact frontend to the captive
        portal for a much nicer provisioning experience (~10KB gzip).
     - Yes [recommended] -> CONFIG_WIFI_CFG_ENABLE_WEBUI=y
+      (the library's UI is embedded by default; a project shipping its OWN
+       frontend inside the firmware adds CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y
+       and registers wifi_cfg_webui_set_asset_provider() -- see guides/custom-webui)
     - No (bare captive portal only)
 
 Q5b: BLE SETTINGS (if BLE selected)

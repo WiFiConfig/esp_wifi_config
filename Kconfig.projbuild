@@ -97,22 +97,68 @@ menu "WiFi Config"
         default n
         depends on WIFI_CFG_ENABLE_SOFTAP
         help
-            Enable embedded Web UI for WiFi Config.
-            Serves responsive web interface at root path (/).
-            Files are compressed with gzip (~16KB total).
+            Serve a Web UI at the root path (/) of the portal's HTTP
+            server. Where the UI's files come from is selected by
+            WIFI_CFG_WEBUI_SOURCE below: the library's bundled Preact
+            UI (~16 KB gzipped, embedded in the firmware), files on a
+            LittleFS/SPIFFS partition, or assets the application
+            supplies at runtime through wifi_cfg_webui_set_asset_provider().
 
             Requires the SoftAP portal: the Web UI is served by the same
-            HTTP server.
+            HTTP server. With this off, / serves a minimal built-in
+            page instead.
+
+    choice WIFI_CFG_WEBUI_SOURCE
+        prompt "Web UI asset source"
+        depends on WIFI_CFG_ENABLE_WEBUI
+        default WIFI_CFG_WEBUI_SOURCE_EMBEDDED
+        help
+            Exactly one source is compiled in. Whatever the source, an
+            asset provider registered with
+            wifi_cfg_webui_set_asset_provider() is consulted first; the
+            selected source is what answers when no provider is
+            registered or the provider declines the path.
+
+        config WIFI_CFG_WEBUI_SOURCE_EMBEDDED
+            bool "Library's bundled UI, embedded in firmware"
+            help
+                Link the library's own frontend (frontend/dist) into the
+                firmware. No application code or filesystem needed.
+
+        config WIFI_CFG_WEBUI_SOURCE_FILESYSTEM
+            bool "Custom UI from LittleFS/SPIFFS"
+            help
+                Serve every GET for a non-API path from
+                WIFI_CFG_WEBUI_CUSTOM_PATH on a mounted filesystem. The
+                library's frontend is not linked in, so a missing file
+                is a 404. Lets the UI be replaced without reflashing
+                the firmware.
+
+        config WIFI_CFG_WEBUI_SOURCE_APPLICATION
+            bool "Custom UI supplied by the application"
+            help
+                The application embeds its own UI files (EMBED_FILES,
+                board_build.embed_files, a generated header, ...) and
+                registers wifi_cfg_webui_set_asset_provider() to hand
+                them to the library on request. The library's frontend
+                is not linked in and no filesystem is touched. Works
+                the same under idf.py and PlatformIO.
+
+    endchoice
 
     config WIFI_CFG_WEBUI_CUSTOM_PATH
         string "Custom Web UI path (filesystem)"
         default ""
         depends on WIFI_CFG_ENABLE_WEBUI
         help
-            Optional path to custom Web UI files on LittleFS/SPIFFS.
-            If set, files from this path will be served instead of
-            embedded defaults. Leave empty to use embedded Web UI.
+            Mount point the Web UI files are served from when
+            WIFI_CFG_WEBUI_SOURCE_FILESYSTEM is selected.
             Example: "/littlefs" or "/spiffs"
+
+            Only meaningful with the filesystem source. It is left
+            visible in the other modes so a build can flag a stale
+            value: before WIFI_CFG_WEBUI_SOURCE existed, a non-empty
+            path was what selected the filesystem mode.
 
     menu "Network Provisioning (BLE)"
 

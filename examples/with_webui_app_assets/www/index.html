@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Device Setup</title>
+  <link rel="stylesheet" href="/assets/index.css">
+</head>
+<body>
+  <main>
+    <h1>Device Setup</h1>
+    <p class="hint">This page is embedded in the application firmware and served by esp_wifi_config.</p>
+
+    <section>
+      <h2>Status</h2>
+      <dl id="status">
+        <dt>State</dt><dd data-k="state">…</dd>
+        <dt>Network</dt><dd data-k="ssid">–</dd>
+        <dt>IP</dt><dd data-k="ip">–</dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Join a network</h2>
+      <form id="join">
+        <label>Network
+          <select id="ssid" required><option value="">Scanning…</option></select>
+        </label>
+        <label>Password
+          <input id="password" type="password" autocomplete="off">
+        </label>
+        <div class="row">
+          <button type="button" id="rescan">Rescan</button>
+          <button type="submit" class="primary">Save &amp; connect</button>
+        </div>
+      </form>
+      <p id="msg" class="msg" hidden></p>
+    </section>
+
+    <section>
+      <h2>Saved networks</h2>
+      <ul id="saved"><li class="hint">None</li></ul>
+    </section>
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

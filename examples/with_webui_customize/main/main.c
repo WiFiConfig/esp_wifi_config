@@ -5,7 +5,8 @@
  * This example demonstrates:
  * - WiFi Config with customizable Web UI from LittleFS
  * - Custom frontend files served from /littlefs/
- * - Fallback to embedded Web UI if files not found
+ * - CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM: the library links in no frontend
+ *   of its own, so a missing file is a 404
  * - Copy frontend/ folder and build your own UI
  */
 
@@ -130,7 +131,7 @@ void app_main(void)
     ESP_LOGI(TAG, "  - /littlefs/assets/app.js.gz");
     ESP_LOGI(TAG, "  - /littlefs/assets/index.css.gz");
     ESP_LOGI(TAG, "");
-    ESP_LOGI(TAG, "If custom files not found, embedded UI is used.");
+    ESP_LOGI(TAG, "A missing file is a 404: no embedded UI is linked in.");
     ESP_LOGI(TAG, "");
 
     // Wait for connection

@@ -1296,6 +1296,96 @@ esp_err_t wifi_cfg_set_ap_config(const wifi_cfg_ap_config_t *config);
 esp_err_t wifi_cfg_get_ap_config(wifi_cfg_ap_config_t *config);
 
 // =============================================================================
+// Web UI API
+// =============================================================================
+
+/**
+ * @brief One Web UI asset, as handed back by an asset provider
+ *
+ * The bytes must stay valid for the life of the firmware: the library sends
+ * straight from @p data and never copies. Flash-resident arrays (EMBED_FILES
+ * symbols, `const uint8_t[]` tables) are the intended use.
+ */
+typedef struct {
+    const uint8_t *data;       /**< Asset bytes. Required. */
+    size_t len;                /**< Length of @p data in bytes */
+    bool gzipped;              /**< true if @p data is gzip-compressed; the library
+                                    adds `Content-Encoding: gzip` */
+    const char *content_type;  /**< MIME type, or NULL to infer it from the path's
+                                    extension (.html, .js, .css, .json, .png, .svg,
+                                    .ico, .jpg, .woff2, .woff, .ttf, .gif, .webp) */
+} wifi_cfg_webui_asset_t;
+
+/**
+ * @brief Asset provider callback
+ *
+ * Called on the HTTP server task for every GET the API does not handle while
+ * provisioning handlers are registered. @p path is the request URI with `/`
+ * already remapped to `/index.html`, e.g. `"/index.html"`,
+ * `"/assets/app.js"`.
+ *
+ * Fill @p out and return true to serve the asset; return false to decline,
+ * which passes the request on to the compiled-in source (embedded or
+ * filesystem) or to a 404 under CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION.
+ *
+ * @param path  Request path, NUL-terminated, always starts with `/`
+ * @param[out] out  Asset to serve. Zeroed on entry.
+ * @param ctx   The context passed to wifi_cfg_webui_set_asset_provider()
+ * @return true to serve @p out, false to decline
+ */
+typedef bool (*wifi_cfg_webui_asset_provider_t)(const char *path, wifi_cfg_webui_asset_t *out, void *ctx);
+
+/**
+ * @brief Serve the Web UI from assets the application owns
+ *
+ * Lets the application embed its own Web UI (a customised build of the
+ * library's frontend, or something else entirely) and keep it in the
+ * firmware image, where it ships with every OTA. The library keeps owning
+ * the routes, the captive-portal redirects and the provisioning start/stop
+ * lifecycle; the provider only supplies bytes.
+ *
+ * The provider is consulted first in every Web UI mode. Under
+ * `CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION=y` it is the only source and
+ * the library links in no frontend of its own. Under the embedded or
+ * filesystem source it acts as an override, and paths it declines fall
+ * through to that source.
+ *
+ * May be called before wifi_cfg_init(). The registration persists across
+ * provisioning stop and restart. Pass NULL to clear.
+ *
+ * @code{.c}
+ * // main/CMakeLists.txt: idf_component_register(... EMBED_FILES
+ * //     "www/index.html" "www/assets/app.js.gz" "www/assets/index.css.gz")
+ * extern const uint8_t idx_start[] asm("_binary_index_html_start");
+ * extern const uint8_t idx_end[]   asm("_binary_index_html_end");
+ * extern const uint8_t js_start[]  asm("_binary_app_js_gz_start");
+ * extern const uint8_t js_end[]    asm("_binary_app_js_gz_end");
+ *
+ * static bool my_assets(const char *path, wifi_cfg_webui_asset_t *out, void *ctx)
+ * {
+ *     if (strcmp(path, "/index.html") == 0) {
+ *         *out = (wifi_cfg_webui_asset_t){ idx_start, idx_end - idx_start, false, NULL };
+ *         return true;
+ *     }
+ *     if (strcmp(path, "/assets/app.js") == 0) {
+ *         *out = (wifi_cfg_webui_asset_t){ js_start, js_end - js_start, true, NULL };
+ *         return true;
+ *     }
+ *     return false;
+ * }
+ *
+ * wifi_cfg_webui_set_asset_provider(my_assets, NULL);
+ * wifi_cfg_init(&config);
+ * @endcode
+ *
+ * @param provider Callback, or NULL to clear
+ * @param ctx      Opaque pointer handed back to @p provider
+ * @return ESP_OK, or ESP_ERR_NOT_SUPPORTED when the Web UI is compiled out
+ *         (CONFIG_WIFI_CFG_ENABLE_WEBUI off), so callers need no #ifdef
+ */
+esp_err_t wifi_cfg_webui_set_asset_provider(wifi_cfg_webui_asset_provider_t provider, void *ctx);
+
+// =============================================================================
 // Connection API
 // =============================================================================
 

@@ -7,6 +7,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-13 - Application-provided Web UI
+
+### Added
+
+- `wifi_cfg_webui_set_asset_provider()`: the application supplies the Web UI
+  bytes and the library keeps owning the routes, captive-portal redirects and
+  provisioning lifecycle. Lets a product embed a customised or wholly
+  different frontend in its own firmware image (`EMBED_FILES`,
+  `board_build.embed_files`, a generated header) so it ships with every OTA,
+  with no filesystem partition. Consulted first in every Web UI mode, so it
+  can also override single files of the embedded or filesystem UI. Returns
+  `ESP_ERR_NOT_SUPPORTED` when the Web UI is compiled out.
+- `CONFIG_WIFI_CFG_WEBUI_SOURCE_APPLICATION`: Web UI mode in which the library
+  links in no frontend of its own and the provider is the only source.
+- `examples/with_webui_app_assets/`: a vanilla-JS UI embedded by the
+  application and served through the provider.
+
+### Changed
+
+- **Breaking (Kconfig):** the Web UI source is the `CONFIG_WIFI_CFG_WEBUI_SOURCE`
+  choice (`EMBEDDED` default, `FILESYSTEM`, `APPLICATION`) instead of being
+  inferred from whether `CONFIG_WIFI_CFG_WEBUI_CUSTOM_PATH` is empty. Projects
+  serving from a filesystem add `CONFIG_WIFI_CFG_WEBUI_SOURCE_FILESYSTEM=y`;
+  the component CMake fails the configure step with the exact line to add
+  when the path is set without it. See `MIGRATION.md`.
+- The C side now reads the Web UI mode from `CONFIG_WIFI_CFG_WEBUI_SOURCE_*`
+  directly. The CMake-fed define is renamed `WIFI_CFG_WEBUI_EMBED_FILES` and
+  only says whether the embedded bytes arrived as `EMBED_FILES` linker
+  symbols; without it the embedded mode uses `src/arduino/webui_assets.h`.
+  That header is what Arduino already linked, and it now serves PlatformIO
+  ESP-IDF builds too, where the component CMake does not run.
+- `esp_wifi_config_webui.c` compiles unconditionally (it carries the
+  not-supported stub); Web UI code inside it is still gated on
+  `CONFIG_WIFI_CFG_ENABLE_WEBUI`.
+
+### Fixed
+
+- PlatformIO ESP-IDF builds with the Web UI on and no custom path served 404
+  for every page: nothing ran the component CMake, so neither `EMBED_FILES`
+  nor the define that enabled the embedded asset table ever fired. The
+  embedded mode now falls back to the generated C-array header in that case.
+
 ## [0.3.2] — 2026-09-13 - Web UI translations and connection feedback
 
 ### Added

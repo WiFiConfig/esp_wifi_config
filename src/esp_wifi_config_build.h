@@ -37,7 +37,10 @@
 #endif
 #if WIFI_CFG_ARDUINO_WEBUI
 #define CONFIG_WIFI_CFG_ENABLE_WEBUI 1
-#define WIFI_CFG_WEBUI_EMBEDDED 1
+// Arduino always ships the bundled UI from src/arduino/webui_assets.h. An
+// application can still register wifi_cfg_webui_set_asset_provider() to
+// serve its own files ahead of it.
+#define CONFIG_WIFI_CFG_WEBUI_SOURCE_EMBEDDED 1
 #endif
 #if WIFI_CFG_ARDUINO_PROV_BLE && WIFI_CFG_ARDUINO_IMPROV_BLE
 #error "Choose either ESP provisioning BLE or Improv BLE"
