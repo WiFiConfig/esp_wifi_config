@@ -910,6 +910,10 @@ static esp_err_t handler_post_factory_reset(httpd_req_t *req)
 // Simple Fallback Page (when Web UI not enabled)
 // =============================================================================
 
+/* Compiled only when the Web UI is off. With it on, / belongs to
+ * wifi_cfg_webui_init() in every source mode, and an unguarded handler here
+ * is an unused-function warning in every consumer's build. */
+#ifndef CONFIG_WIFI_CFG_ENABLE_WEBUI
 static const char *simple_page_html =
     "<!DOCTYPE html><html><head>"
     "<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -988,6 +992,7 @@ static esp_err_t handler_simple_page(httpd_req_t *req)
     httpd_resp_send(req, simple_page_html, strlen(simple_page_html));
     return ESP_OK;
 }
+#endif // !CONFIG_WIFI_CFG_ENABLE_WEBUI
 
 // =============================================================================
 // Captive Portal
