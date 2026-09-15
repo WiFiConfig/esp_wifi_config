@@ -175,6 +175,11 @@ static bool s_prov_initialized = false;     // wifi_prov_mgr_init has been calle
 static bool s_prov_active      = false;     // wifi_prov_mgr_start_provisioning succeeded
 static int  s_failed_attempts  = 0;         // counted across CRED_FAIL events
 static bool s_coex_pref_set    = false;     // tracks whether we biased coex toward BT
+/* Credentials are only durable after the provisioning manager reports that
+ * they connected successfully. Persisting at CRED_RECV made a typo or an
+ * unavailable SSID part of the reconnect list before it had been validated. */
+static wifi_network_t s_pending_network;
+static bool           s_pending_network_valid = false;
 #ifdef ARDUINO_ARCH_ESP32
 // Arduino's WiFiGeneric owns manager deinit on NETWORK_PROV_END. A caller
 // ending the library must wait for its DEINIT event rather than race it.
@@ -668,6 +673,25 @@ static esp_err_t network_policy_endpoint(uint32_t session_id, const uint8_t *inb
 // (creds-already-received, explicit stop, already-pending) are short-circuited
 // by guards below.
 
+// Move the candidate received at CRED_RECV into the durable network store
+// (upsert on duplicate SSID) and clear it. No-op when nothing is pending.
+static void persist_pending_network(void)
+{
+    if (!s_pending_network_valid) {
+        return;
+    }
+    esp_err_t err = wifi_cfg_add_network(&s_pending_network);
+    if (err == ESP_ERR_INVALID_STATE) {
+        err = wifi_cfg_update_network(&s_pending_network);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to persist provisioned network %s: %s",
+                 s_pending_network.ssid, esp_err_to_name(err));
+    }
+    memset(&s_pending_network, 0, sizeof(s_pending_network));
+    s_pending_network_valid = false;
+}
+
 // True when the reboot-on-success behavior is active (default-on
 // unless the app explicitly opted out via the config flag).
 static bool reboot_on_success_enabled(void)
@@ -698,6 +722,15 @@ static void on_protocomm_ble_disconnect(void *arg, esp_event_base_t base,
     // we don't bother coordinating with the backstop timer.
     if (s_creds_received && reboot_on_success_enabled()) {
         ESP_LOGI(TAG, "Provisioning complete; client disconnected, rebooting");
+        // The client may drop before the manager reports CRED_SUCCESS. The
+        // candidate held since CRED_RECV would be lost across the reboot,
+        // leaving the device unprovisioned, so persist it unverified here —
+        // the pre-deferral behaviour for exactly this window.
+        if (s_pending_network_valid) {
+            ESP_LOGW(TAG, "Connection not yet confirmed; saving %s unverified",
+                     s_pending_network.ssid);
+            persist_pending_network();
+        }
         // Brief delay so the final log line drains and any in-flight
         // protocomm response finishes flushing before the reboot.
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -771,6 +804,8 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             ESP_LOGI(TAG, "Provisioning started");
             s_prov_active = true;
             s_failed_attempts = 0;
+            memset(&s_pending_network, 0, sizeof(s_pending_network));
+            s_pending_network_valid = false;
             break;
 
         case WIFI_PROV_EVT_CRED_RECV: {
@@ -791,15 +826,17 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
                        ? sizeof(creds.password) - 1 : sizeof(cfg->password));
             ESP_LOGI(TAG, "Credentials received for %s", creds.ssid);
 
-            // Persist into the multi-network store. Upsert on duplicate.
-            wifi_network_t net = {0};
-            strncpy(net.ssid, creds.ssid, sizeof(net.ssid) - 1);
-            strncpy(net.password, creds.password, sizeof(net.password) - 1);
-            net.priority = 10;
-            esp_err_t err = wifi_cfg_add_network(&net);
-            if (err == ESP_ERR_INVALID_STATE) {
-                wifi_cfg_update_network(&net);
-            }
+            // Hold the candidate until CRED_SUCCESS. CRED_RECV only means the
+            // protocol accepted its shape; the SSID may be absent or its
+            // password wrong, and neither belongs in the durable reconnect
+            // list. A later attempt replaces this candidate.
+            memset(&s_pending_network, 0, sizeof(s_pending_network));
+            strncpy(s_pending_network.ssid, creds.ssid,
+                    sizeof(s_pending_network.ssid) - 1);
+            strncpy(s_pending_network.password, creds.password,
+                    sizeof(s_pending_network.password) - 1);
+            s_pending_network.priority = 10;
+            s_pending_network_valid = true;
 
             wifi_cfg_event_post(WIFI_CFG_EVENT_PROV_CRED_RECV, &creds, sizeof(creds));
             if (prov_cfg && prov_cfg->on_credentials_received) {
@@ -812,6 +849,8 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             WIFI_PROV_FAIL_REASON_T *reason = (WIFI_PROV_FAIL_REASON_T *)data;
             int reason_val = reason ? (int)*reason : -1;
             ESP_LOGW(TAG, "Provisioning failed, reason=%d", reason_val);
+            memset(&s_pending_network, 0, sizeof(s_pending_network));
+            s_pending_network_valid = false;
             if (reason && *reason == WIFI_PROV_STA_AUTH_ERROR) {
                 ESP_LOGW(TAG, "Bad password — accepting another attempt");
             }
@@ -834,6 +873,7 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
         case WIFI_PROV_EVT_CRED_SUCCESS:
             ESP_LOGI(TAG, "Provisioning credentials accepted");
             s_failed_attempts = 0;
+            persist_pending_network();
             wifi_cfg_event_post(WIFI_CFG_EVENT_PROV_CRED_SUCCESS, NULL, 0);
             if (prov_cfg && prov_cfg->on_credentials_success) {
                 prov_cfg->on_credentials_success(prov_cfg->event_ctx);
@@ -865,6 +905,8 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
         case WIFI_PROV_EVT_END:
             ESP_LOGI(TAG, "Provisioning finished");
             s_prov_active = false;
+            memset(&s_pending_network, 0, sizeof(s_pending_network));
+            s_pending_network_valid = false;
             // Auto-stop is always disabled — END only fires after the
             // library-level lifecycle calls wifi_cfg_prov_stop(). Deinit
             // here finalises the protocomm teardown.

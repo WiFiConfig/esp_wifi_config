@@ -12,7 +12,7 @@ This example demonstrates basic usage of the ESP WiFi Config component.
 
 ## Hardware Required
 
-Any ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, or ESP32-H2 development board.
+Any ESP32, ESP32-S2, ESP32-S3, ESP32-C3, or ESP32-C6 development board.
 
 ## Build and Flash
 

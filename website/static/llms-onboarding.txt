@@ -46,10 +46,11 @@ This questionnaire will help determine the user's needs and generate the
 Q1: TARGET CHIP
 ---------------
 Ask: What ESP32 chip are you targeting?
-Options: ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-H2
+Options: ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6
 
 GATES:
-- ESP32-H2: STOP. This library requires WiFi. ESP32-H2 has no WiFi.
+- ESP32-H2: STOP. It is not in the list above. This library requires WiFi
+  and the ESP32-H2 has no WiFi radio.
 - ESP32-S2: No Bluetooth. Disable all BLE and Improv BLE options.
 
 Q2: INSTALLATION METHOD

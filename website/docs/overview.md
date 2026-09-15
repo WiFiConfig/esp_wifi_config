@@ -29,7 +29,9 @@ ESP WiFi Config is a WiFi configuration component for ESP-IDF that handles multi
 
 ## Supported Targets
 
-ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-H2
+ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6
+
+The ESP32-H2 has no WiFi radio and is not a target for this library.
 
 ## Architecture
 

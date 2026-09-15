@@ -9,10 +9,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- **BLE provisioning:** credentials were written to the saved-network list
+  as soon as the client sent them (`WIFI_PROV_EVT_CRED_RECV`), before the
+  device had tried to connect. A mistyped password or an SSID that was not in
+  range therefore became a permanent entry in the reconnect list, and the
+  device would keep retrying it on every boot. The library now holds the
+  candidate and saves it only once the provisioning manager reports
+  `WIFI_PROV_EVT_CRED_SUCCESS`; a `CRED_FAIL` discards it so the next attempt
+  starts clean. One exception: with reboot-on-success active, a BLE client
+  that disconnects after sending credentials but before the connection is
+  confirmed triggers a reboot, and the candidate is saved unverified on that
+  path so it is not lost across the restart (the pre-existing behaviour for
+  that window).
 - `handler_simple_page()` was defined unconditionally but only used with the
   Web UI off, so every `CONFIG_WIFI_CFG_ENABLE_WEBUI=y` build emitted an
   unused-function warning from the component. It is now guarded on the same
   symbol as its only caller.
+- **Docs:** the ESP32-H2 was listed as a supported target in the README, the
+  docs site and `examples/basic`, and as a `targets:` entry in
+  `idf_component.yml`. It has no WiFi radio, so the library cannot run on it.
+  Removed everywhere it was claimed; the AI onboarding guides already gated
+  on it and now no longer offer it as a choice either.
 
 ## [0.4.0] — 2026-09-13 - Application-provided Web UI
 

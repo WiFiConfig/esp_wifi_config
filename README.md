@@ -45,7 +45,7 @@ and showed no resource benefit from switching. See the
 - **Custom variable store** — application key/value settings flow through every provisioning interface
 - **Event-driven** on ESP-IDF's default event loop under `WIFI_CFG_EVENT` (connected, disconnected, got IP, provisioning started/stopped)
 
-**Targets:** ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-H2
+**Targets:** ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6
 
 ## Provisioning Methods
 

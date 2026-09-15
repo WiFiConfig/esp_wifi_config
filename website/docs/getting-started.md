@@ -12,7 +12,7 @@ For a native Arduino sketch, follow the [Arduino guide](arduino.md). The steps b
 ## Prerequisites
 
 - ESP-IDF >= 5.4
-- An ESP32-series target (ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, or ESP32-H2)
+- An ESP32-series target with WiFi (ESP32, ESP32-S2, ESP32-S3, ESP32-C3, or ESP32-C6 — the ESP32-H2 has no WiFi radio)
 
 ## Installation
 
