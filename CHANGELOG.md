@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-09-19 - BLE credential persistence
+
 ### Fixed
 
 - **BLE provisioning:** credentials were written to the saved-network list
@@ -30,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   `idf_component.yml`. It has no WiFi radio, so the library cannot run on it.
   Removed everywhere it was claimed; the AI onboarding guides already gated
   on it and now no longer offer it as a choice either.
+- Arduino library metadata and the BLE version endpoint now report the same
+  release version as the ESP-IDF and PlatformIO manifests.
 
 ## [0.4.0] — 2026-09-13 - Application-provided Web UI
 
