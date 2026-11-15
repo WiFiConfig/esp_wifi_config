@@ -214,6 +214,44 @@ static void handle_send_wifi_settings(const uint8_t *data, size_t len,
     // Response is sent from wifi_cfg_improv_on_got_ip / _on_disconnected
 }
 
+/**
+ * Send an RPC result for @p cmd_id carrying the device's redirect URL -- the
+ * shape both SEND_WIFI_SETTINGS and serial's GET_CURRENT_STATE answer with
+ * once provisioned.
+ */
+static void send_redirect_url(uint8_t cmd_id, improv_response_cb_t cb)
+{
+    wifi_status_t status;
+    wifi_cfg_get_status(&status);
+
+    char url[64];
+    snprintf(url, sizeof(url), "http://%s", status.ip);
+
+    uint8_t payload[128];
+    size_t poff = 0;
+    append_tlv_string(payload, sizeof(payload), &poff, url);
+
+    send_rpc_result(cmd_id, payload, poff, cb);
+}
+
+/**
+ * Serial RPC 0x02, Request current state: answered with a Current State
+ * packet and, if provisioned, an RPC result carrying the redirect URL. A
+ * query, so it leaves the error state alone and fires nothing on the
+ * application side.
+ */
+static void handle_get_current_state(improv_response_cb_t cb)
+{
+    ESP_LOGD(TAG, "RPC: Get Current State");
+
+    uint8_t state = (uint8_t)s_state;
+    cb(IMPROV_SERIAL_TYPE_CURRENT_STATE, &state, 1);
+
+    if (s_state == IMPROV_STATE_PROVISIONED) {
+        send_redirect_url(IMPROV_RPC_GET_CURRENT_STATE, cb);
+    }
+}
+
 static void handle_identify(improv_response_cb_t cb)
 {
     ESP_LOGI(TAG, "RPC: Identify");
@@ -287,7 +325,7 @@ static const char *auth_mode_str(wifi_auth_mode_t auth)
 }
 
 static void handle_get_wifi_networks(improv_response_cb_t cb,
-                                     improv_rpc_style_t style, size_t max_payload)
+                                     improv_transport_t transport, size_t max_payload)
 {
     ESP_LOGI(TAG, "RPC: Get WiFi Networks (scan)");
 
@@ -309,7 +347,7 @@ static void handle_get_wifi_networks(improv_response_cb_t cb,
 
     /*
      * The two specifications disagree here, so the transport says which it
-     * wants. See improv_rpc_style_t in the header for both quotes and for why
+     * wants. See improv_transport_t in the header for both quotes and for why
      * the difference matters more on serial than it looks.
      */
     uint8_t payload[IMPROV_RPC_MAX_PAYLOAD];
@@ -342,7 +380,7 @@ static void handle_get_wifi_networks(improv_response_cb_t cb,
                       + 1 + strlen(rssi_str)
                       + 1 + strlen(auth_str);
 
-        if (style == IMPROV_RPC_STYLE_CHUNKED) {
+        if (transport == IMPROV_TRANSPORT_SERIAL) {
             /* One response per network. Three strings each, so a response is
              * a few dozen bytes and no amount of neighbours can overflow the
              * frame that carries it. */
@@ -369,13 +407,13 @@ static void handle_get_wifi_networks(improv_response_cb_t cb,
         sent++;
     }
 
-    if (style == IMPROV_RPC_STYLE_SINGLE && sent < count) {
+    if (transport == IMPROV_TRANSPORT_BLE && sent < count) {
         ESP_LOGW(TAG, "scan response carries %u of %u networks: %u payload "
                       "bytes is all this link can deliver in one response",
                  (unsigned)sent, (unsigned)count, (unsigned)cap);
     }
 
-    if (style == IMPROV_RPC_STYLE_CHUNKED) {
+    if (transport == IMPROV_TRANSPORT_SERIAL) {
         /* "The final response (or the first if no networks are found) will
          * have 0 strings in the body." A client cannot otherwise tell the end
          * of the list from a slow radio. */
@@ -393,7 +431,7 @@ static void handle_get_wifi_networks(improv_response_cb_t cb,
 
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
                                 improv_response_cb_t response_cb,
-                                improv_rpc_style_t style, size_t max_payload)
+                                improv_transport_t transport, size_t max_payload)
 {
     if (!data || len < 2) {
         wifi_cfg_improv_set_error(IMPROV_ERROR_INVALID_RPC);
@@ -409,6 +447,14 @@ void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
     }
 
     const uint8_t *cmd_data = data + 2;
+
+    /* Serial's 0x02 is a state poll, not BLE's Identify. Answered before the
+     * error is cleared: clearing it broadcasts a state packet of its own, and
+     * a poll should report the error state rather than reset it. */
+    if (transport == IMPROV_TRANSPORT_SERIAL && cmd_id == IMPROV_RPC_GET_CURRENT_STATE) {
+        handle_get_current_state(response_cb);
+        return;
+    }
 
     // Clear previous error
     wifi_cfg_improv_set_error(IMPROV_ERROR_NONE);
@@ -427,7 +473,7 @@ void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
             break;
 
         case IMPROV_RPC_GET_WIFI_NETWORKS:
-            handle_get_wifi_networks(response_cb, style, max_payload);
+            handle_get_wifi_networks(response_cb, transport, max_payload);
             break;
 
         default:
@@ -448,18 +494,7 @@ void wifi_cfg_improv_on_got_ip(void)
 
         // Send deferred RPC result with redirect URL
         if (s_pending_wifi_cb) {
-            wifi_status_t status;
-            wifi_cfg_get_status(&status);
-
-            char url[64];
-            snprintf(url, sizeof(url), "http://%s", status.ip);
-
-            uint8_t payload[128];
-            size_t poff = 0;
-            append_tlv_string(payload, sizeof(payload), &poff, url);
-
-            send_rpc_result(IMPROV_RPC_SEND_WIFI_SETTINGS, payload, poff,
-                            s_pending_wifi_cb);
+            send_redirect_url(IMPROV_RPC_SEND_WIFI_SETTINGS, s_pending_wifi_cb);
             s_pending_wifi_cb = NULL;
         }
     }
@@ -585,8 +620,8 @@ void wifi_cfg_improv_set_error(improv_error_t error) { (void)error; }
 void wifi_cfg_improv_register_state_cb(improv_state_change_cb_t cb) { (void)cb; }
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
                                 improv_response_cb_t response_cb,
-                                improv_rpc_style_t style, size_t max_payload) {
-    (void)data; (void)len; (void)response_cb; (void)style;
+                                improv_transport_t transport, size_t max_payload) {
+    (void)data; (void)len; (void)response_cb; (void)transport;
     (void)max_payload;
 }
 

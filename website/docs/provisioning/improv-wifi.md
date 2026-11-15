@@ -103,9 +103,30 @@ wifi_cfg_init(&(wifi_cfg_config_t){
 | Command | ID | Description |
 |---|---|---|
 | Send WiFi Settings | 0x01 | Provide SSID + password, device connects |
-| Identify | 0x02 | Flash LED / beep (calls `on_identify` callback) |
+| Identify (BLE) | 0x02 | Flash LED / beep (calls `on_identify` callback) |
+| Request Current State (Serial) | 0x02 | Returns the current state; once provisioned, also the device URL |
 | Get Device Info | 0x03 | Returns firmware name, version, chip, device name |
 | Get WiFi Networks | 0x04 | Triggers a WiFi scan and returns results |
+
+Command 0x02 means different things on the two transports, and the library
+follows each one's specification. Over serial it is a state poll that flashers
+send repeatedly, so it never calls `on_identify`. Improv Serial has no Identify
+command.
+
+### Telling which board is which over BLE
+
+The default advertised name is `ESP32-WiFi-{id}` (`PROV_{id}` for ESP-IDF BLE
+provisioning). `{id}` is the last three bytes of the base MAC address (the STA
+MAC) in uppercase hex, so a board whose MAC is `24:6F:28:A1:B2:C3` advertises
+as `ESP32-WiFi-A1B2C3`.
+
+That suffix is how a host matches a BLE advert to the board it has just
+flashed. Flashing tools read the base MAC over the serial bootloader, but the
+BLE address is not something a host can always compare against: macOS hides
+peripheral addresses, and on ESP32 the Bluetooth MAC is offset from the base
+MAC anyway. Compare the name suffix against bytes 3–5 of the MAC the flasher
+reported. This works as long as you keep `{id}` in any custom name and the
+firmware does not override the base MAC with `esp_base_mac_addr_set()`.
 
 ### How many networks a scan returns
 

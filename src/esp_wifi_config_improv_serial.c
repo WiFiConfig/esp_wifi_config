@@ -250,7 +250,7 @@ static void serial_rx_task(void *param)
                              * stated rather than assumed. */
                             wifi_cfg_improv_handle_rpc(rx_buf, pkt_len,
                                                        serial_response_cb,
-                                                       IMPROV_RPC_STYLE_CHUNKED,
+                                                       IMPROV_TRANSPORT_SERIAL,
                                                        IMPROV_SERIAL_MAX_DATA - 2);
                             break;
 

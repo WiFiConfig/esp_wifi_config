@@ -39,6 +39,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   behaviour — the AP it starts belongs to the application — and is now
   documented that way; the docs that named it as the `WIFI_PROV_MANUAL`
   trigger now name `wifi_cfg_start_provisioning()`.
+- Improv Serial RPC 0x02 ran Identify. That is its meaning only on BLE; on
+  serial it is Request current state, which flashers poll. Every poll fired
+  `on_identify` and sent an empty Identify result, and the state packet the
+  client wanted came only as a side effect of clearing the error state. It
+  now answers with the current state and, once provisioned, an RPC result
+  carrying the device URL, and leaves the error state as it is. BLE's 0x02 is
+  unchanged.
 
 ## [0.4.1] — 2026-09-19 - BLE credential persistence
 

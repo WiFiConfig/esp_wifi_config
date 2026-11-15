@@ -765,7 +765,7 @@ static void improv_ble_cmd_task(void *param)
             /* BLE spec: one RPC Response holding every network -- as many of
              * them as this connection's MTU leaves room for. */
             wifi_cfg_improv_handle_rpc(msg.data, msg.length, ble_response_cb,
-                                       IMPROV_RPC_STYLE_SINGLE,
+                                       IMPROV_TRANSPORT_BLE,
                                        improv_ble_max_result_payload());
         } else {
             /* Reported the same way the core reports its own frame errors, so

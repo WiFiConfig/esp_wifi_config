@@ -50,7 +50,8 @@ typedef enum {
 
 // --- Improv RPC Command IDs ---
 #define IMPROV_RPC_SEND_WIFI_SETTINGS   0x01
-#define IMPROV_RPC_IDENTIFY             0x02
+#define IMPROV_RPC_IDENTIFY             0x02  // BLE only
+#define IMPROV_RPC_GET_CURRENT_STATE    0x02  // Serial only -- see improv_transport_t
 #define IMPROV_RPC_GET_DEVICE_INFO      0x03
 #define IMPROV_RPC_GET_WIFI_NETWORKS    0x04
 #define IMPROV_RPC_GET_HOSTNAME         0x05  // Extended
@@ -141,10 +142,19 @@ typedef void (*improv_response_cb_t)(uint8_t type, const uint8_t *data, size_t l
 // =============================================================================
 
 /**
- * @brief How a transport wants multi-part RPC results delivered.
+ * @brief Which transport an RPC arrived on.
  *
- * The two Improv specifications disagree about GET_WIFI_NETWORKS, and neither
- * is a superset of the other, so the core cannot pick one:
+ * The two Improv specifications are not the same protocol over two links;
+ * they disagree in places, and neither is a superset of the other, so the core
+ * has to know which one it is speaking.
+ *
+ * Command 0x02 means different things. BLE: Identify. Serial
+ * (improv-wifi.com/serial): Request current state -- answered with a Current
+ * State packet and, once provisioned, an RPC result carrying the redirect URL.
+ * Running Identify for it on serial fires on_identify on every state poll a
+ * flasher makes.
+ *
+ * GET_WIFI_NETWORKS is delivered differently:
  *
  * - BLE (improv-wifi.com/ble): "This command will trigger one RPC Response
  *   which will contain a multiple of 3 strings where the first contains the
@@ -162,9 +172,9 @@ typedef void (*improv_response_cb_t)(uint8_t type, const uint8_t *data, size_t l
  * cannot overflow.
  */
 typedef enum {
-    IMPROV_RPC_STYLE_SINGLE,   /**< BLE: one response holding every network. */
-    IMPROV_RPC_STYLE_CHUNKED,  /**< Serial: one per network, then an empty one. */
-} improv_rpc_style_t;
+    IMPROV_TRANSPORT_BLE,      /**< Scan: one response holding every network. */
+    IMPROV_TRANSPORT_SERIAL,   /**< Scan: one per network, then an empty one. */
+} improv_transport_t;
 
 /**
  * @brief Largest RPC result payload the format itself can express.
@@ -181,7 +191,8 @@ typedef enum {
  * @param data          Raw RPC packet: command, length, payload.
  * @param len           Length of @p data.
  * @param response_cb   Called with each result this command produces.
- * @param style         How this transport wants multi-part results delivered.
+ * @param transport     Which specification's command set and result shapes
+ *                      apply.
  * @param max_payload   Largest result *payload* this transport can deliver in
  *                      one response -- the TLV bytes only, excluding the two
  *                      header bytes and anything the transport adds around
@@ -198,7 +209,7 @@ typedef enum {
  */
 void wifi_cfg_improv_handle_rpc(const uint8_t *data, size_t len,
                                 improv_response_cb_t response_cb,
-                                improv_rpc_style_t style, size_t max_payload);
+                                improv_transport_t transport, size_t max_payload);
 
 /**
  * @brief Get the current Improv state.
