@@ -23,7 +23,7 @@
  * ---------
  * The library always calls wifi_prov_mgr_disable_auto_stop(), so the manager
  * never tears itself down implicitly. Stop is driven from
- * wifi_cfg_stop_provisioning() (library lifecycle) or from
+ * wifi_cfg_prov_orchestrate_stop() (library lifecycle) or from
  * wifi_cfg_prov_stop() directly. `cleanup_delay_ms` controls the grace
  * window the manager honours between a stop request and protocomm
  * shutdown — useful for letting custom-endpoint exchanges complete after

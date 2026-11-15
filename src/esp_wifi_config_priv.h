@@ -172,6 +172,8 @@ typedef enum {
     WM_INT_EVT_AP_STA_CONN,         // Client connected to AP
     WM_INT_EVT_TEARDOWN_TIMER,      // Provisioning teardown delay expired
     WM_INT_EVT_PROV_BLE_RESTART,    // Restart prov mgr after BLE disconnect (IDF NimBLE workaround)
+    WM_INT_EVT_START_PROVISIONING,  // wifi_cfg_start_provisioning() from an app task
+    WM_INT_EVT_STOP_PROVISIONING,   // wifi_cfg_stop_provisioning() from an app task
     WM_INT_EVT_STOP,                // Stop task
 } wifi_cfg_internal_evt_t;
 
@@ -371,11 +373,14 @@ static inline esp_err_t wifi_cfg_ap_reassert(const char *why) { (void)why; retur
 // Provisioning Orchestration
 // =============================================================================
 
-// Start all enabled provisioning interfaces (AP + BLE) per config
-void wifi_cfg_start_provisioning(void);
+// Start all enabled provisioning interfaces (AP + BLE) per config. Manager
+// task context only; the public wifi_cfg_start_provisioning() posts
+// WM_INT_EVT_START_PROVISIONING to get here.
+void wifi_cfg_prov_orchestrate_start(void);
 
-// Stop all provisioning interfaces, transition HTTP per post-prov mode
-void wifi_cfg_stop_provisioning(void);
+// Stop all provisioning interfaces, transition HTTP per post-prov mode.
+// Manager task context only, as above.
+void wifi_cfg_prov_orchestrate_stop(void);
 
 
 // =============================================================================

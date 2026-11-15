@@ -9,6 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- `wifi_cfg_start_provisioning()` / `wifi_cfg_stop_provisioning()`: public
+  start and stop for the provisioning session — every enabled interface
+  (SoftAP if `enable_ap`, BLE / Improv, the HTTP provisioning handlers) —
+  with `stop_provisioning_on_connect` and `provisioning_teardown_delay_ms`
+  applying as they do to an automatic start. This is the trigger
+  `WIFI_PROV_MANUAL` always promised, and the way to re-provision after
+  `wifi_cfg_factory_reset()` without restarting. Both are asynchronous (the
+  work runs on the library's task) and cancel a pending teardown delay. The
+  internal functions that previously had these names are now
+  `wifi_cfg_prov_orchestrate_start()` / `_stop()`; code that declared the
+  private symbols itself now gets the public `esp_err_t` versions.
 - `wifi_cfg_config_t.sta_min_auth_mode`: opt-in to joining WEP and WPA(v1)
   networks (#6). Left at zero (the default) nothing changes: ESP-IDF demands
   WPA2 or better for any password of 8+ characters, so such routers are
@@ -17,6 +28,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   weakens downgrade protection, and the first connect made by the BLE
   provisioning manager is not covered. `wifi_cfg_init()` rejects
   out-of-range values.
+
+### Fixed
+
+- The SoftAP never stopped after re-provisioning (#7). An application that
+  reset with `wifi_cfg_disconnect()` + `wifi_cfg_factory_reset()` +
+  `wifi_cfg_start_ap()` got an AP that was not part of a provisioning
+  session, so `stop_provisioning_on_connect` never tore it down. Use
+  `wifi_cfg_start_provisioning()` instead. `wifi_cfg_start_ap()` keeps its
+  behaviour — the AP it starts belongs to the application — and is now
+  documented that way; the docs that named it as the `WIFI_PROV_MANUAL`
+  trigger now name `wifi_cfg_start_provisioning()`.
 
 ## [0.4.1] — 2026-09-19 - BLE credential persistence
 

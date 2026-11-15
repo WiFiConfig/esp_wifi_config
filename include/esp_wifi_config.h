@@ -429,7 +429,7 @@ typedef enum {
     /// must select a mode that works.
     WIFI_PROV_ON_FAILURE = 0,
     WIFI_PROV_WHEN_UNPROVISIONED, ///< Start only if no saved networks exist
-    WIFI_PROV_MANUAL,             ///< Only via explicit API call (e.g., button press)
+    WIFI_PROV_MANUAL,             ///< Only via wifi_cfg_start_provisioning() (e.g., button press)
     /// [DISABLED] Start provisioning at init regardless of state. Currently
     /// treated as WIFI_PROV_MANUAL — see the note in esp_wifi_config.c.
     ///
@@ -1259,6 +1259,56 @@ esp_err_t wifi_cfg_get_var(const char *key, char *value, size_t max_len);
 esp_err_t wifi_cfg_del_var(const char *key);
 
 // =============================================================================
+// Provisioning API
+// =============================================================================
+
+/**
+ * @brief Start provisioning
+ *
+ * Starts every enabled provisioning interface — the SoftAP if `enable_ap`,
+ * the BLE interface (ESP-IDF provisioning or Improv BLE) and Improv Serial
+ * if compiled in, and the HTTP provisioning handlers — and marks
+ * provisioning active, so `stop_provisioning_on_connect` and
+ * `provisioning_teardown_delay_ms` tear it all down once the STA gets an IP.
+ * This is the call for WIFI_PROV_MANUAL, and for re-entering provisioning
+ * after wifi_cfg_factory_reset(), which does not restart it on its own.
+ *
+ * Contrast wifi_cfg_start_ap(): that starts an application-owned AP which the
+ * provisioning lifecycle never stops. An AP that is already up when this is
+ * called is adopted and stopped along with the rest.
+ *
+ * Asynchronous: the work runs on the library's task, which posts
+ * WIFI_CFG_EVENT_PROVISIONING_STARTED when it is done. A no-op if
+ * provisioning is already active, except that it cancels a pending
+ * `provisioning_teardown_delay_ms` teardown.
+ *
+ * @code{.c}
+ * // "Forget WiFi" button
+ * wifi_cfg_disconnect();
+ * wifi_cfg_factory_reset();
+ * wifi_cfg_start_provisioning();
+ * @endcode
+ *
+ * @return ESP_OK once queued; ESP_ERR_INVALID_STATE if not initialised (or
+ *         deinitialising); ESP_ERR_TIMEOUT if the library's queue is full
+ */
+esp_err_t wifi_cfg_start_provisioning(void);
+
+/**
+ * @brief Stop provisioning
+ *
+ * Stops every provisioning interface started by wifi_cfg_start_provisioning()
+ * or by `provisioning_mode`, applies `http_post_prov_mode`, and cancels a
+ * pending `provisioning_teardown_delay_ms` teardown. Asynchronous, like
+ * wifi_cfg_start_provisioning(); WIFI_CFG_EVENT_PROVISIONING_STOPPED marks
+ * completion. A no-op if provisioning is not active.
+ *
+ * @return ESP_OK once queued; ESP_ERR_INVALID_STATE if not initialised (or
+ *         deinitialising); ESP_ERR_TIMEOUT if the library's queue is full
+ */
+esp_err_t wifi_cfg_stop_provisioning(void);
+
+// =============================================================================
 // SoftAP API
 // =============================================================================
 
@@ -1266,6 +1316,11 @@ esp_err_t wifi_cfg_del_var(const char *key);
  * @brief Start SoftAP
  * 
  * Starts the SoftAP. It can run alongside station mode.
+ *
+ * The AP belongs to the application: it is not part of a provisioning
+ * session, so `stop_provisioning_on_connect` never stops it — call
+ * wifi_cfg_stop_ap(). To bring the AP up *as provisioning* (torn down on
+ * connect), call wifi_cfg_start_provisioning() with `enable_ap` set.
  * 
  * @param config Config to use for this run, or NULL for the saved one
  * @return ESP_OK on success
@@ -1460,6 +1515,8 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
  *
  * Erases everything in NVS: networks, variables, AP config and auth
  * credentials. Restart afterwards, or call wifi_cfg_deinit() and init again.
+ * To re-provision without either, call wifi_cfg_start_provisioning(); this
+ * function does not start provisioning on its own.
  *
  * @return ESP_OK on success
  */

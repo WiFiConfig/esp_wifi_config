@@ -100,7 +100,7 @@ Options:
         so OMIT provisioning_mode from the generated config for this answer.
   b) Only when unprovisioned (once configured, never auto-provision again)
      -> WIFI_PROV_WHEN_UNPROVISIONED
-  c) Manual trigger only (app calls wifi_cfg_start_ap() explicitly)
+  c) Manual trigger only (app calls wifi_cfg_start_provisioning() explicitly)
      -> WIFI_PROV_MANUAL
   d) [UNAVAILABLE - do not offer this] Always, including after provisioning.
      WIFI_PROV_ALWAYS is disabled in the library and behaves as

@@ -86,7 +86,7 @@ void wifi_cfg_start_connect_sequence(void)
              g_wifi_cfg->config.provisioning_mode == WIFI_PROV_WHEN_UNPROVISIONED)) {
             if (!g_wifi_cfg->provisioning_active) {
                 ESP_LOGI(TAG, "No networks, starting provisioning");
-                wifi_cfg_start_provisioning();
+                wifi_cfg_prov_orchestrate_start();
             }
         }
         return;
@@ -157,7 +157,7 @@ void wifi_cfg_start_connect_sequence(void)
     if (g_wifi_cfg->config.provisioning_mode == WIFI_PROV_ON_FAILURE &&
         !g_wifi_cfg->provisioning_active) {
         ESP_LOGI(TAG, "All networks failed, starting provisioning");
-        wifi_cfg_start_provisioning();
+        wifi_cfg_prov_orchestrate_start();
     }
 }
 

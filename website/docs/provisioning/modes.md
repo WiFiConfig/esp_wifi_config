@@ -14,7 +14,7 @@ The `provisioning_mode` field controls when ESP WiFi Config automatically starts
 |---|---|---|
 | `WIFI_PROV_ON_FAILURE` | 0 | Start provisioning when no networks are saved or all saved networks fail to connect. **The default**, supplied by `WIFI_CFG_DEFAULTS`. |
 | `WIFI_PROV_WHEN_UNPROVISIONED` | 1 | Start provisioning only if no networks exist in NVS |
-| `WIFI_PROV_MANUAL` | 2 | Never auto-start provisioning; the application calls `wifi_cfg_start_ap()` explicitly |
+| `WIFI_PROV_MANUAL` | 2 | Never auto-start provisioning; the application calls `wifi_cfg_start_provisioning()` explicitly |
 | `WIFI_PROV_ALWAYS` | 3 | **Disabled** — kept in the API for compatibility but currently treated as `WIFI_PROV_MANUAL` at boot. See note below. |
 
 :::info Numeric values changed in 0.2.0
@@ -22,7 +22,7 @@ The `provisioning_mode` field controls when ESP WiFi Config automatically starts
 :::
 
 :::caution `WIFI_PROV_ALWAYS` is disabled
-`wifi_cfg_start_provisioning()` eventually calls `wifi_prov_mgr_start_provisioning()`, which calls `nimble_port_init()`. If the application has already initialised the BLE stack, that call fails — so the always-on path is bypassed (with a warning log) and treated as `WIFI_PROV_MANUAL`. The enum value is preserved so existing configs still compile. May be re-enabled when the library has its own BLE provisioning path independent of Espressif's `wifi_provisioning` component.
+Starting provisioning eventually calls `wifi_prov_mgr_start_provisioning()`, which calls `nimble_port_init()`. If the application has already initialised the BLE stack, that call fails — so the always-on path is bypassed (with a warning log) and treated as `WIFI_PROV_MANUAL`. The enum value is preserved so existing configs still compile. May be re-enabled when the library has its own BLE provisioning path independent of Espressif's `wifi_provisioning` component.
 :::
 
 ## Choosing a Mode
@@ -31,7 +31,29 @@ The `provisioning_mode` field controls when ESP WiFi Config automatically starts
 
 - **`WIFI_PROV_WHEN_UNPROVISIONED`** — Only provision on first boot. Once the user has configured at least one network, provisioning never starts automatically again. Use this for devices that should be configured once and left alone.
 
-- **`WIFI_PROV_MANUAL`** — Full control. Provisioning only starts when your code calls `wifi_cfg_start_ap()` (e.g., on a button press or GPIO event). Use this when you have a physical provisioning trigger.
+- **`WIFI_PROV_MANUAL`** — Full control. Provisioning only starts when your code calls `wifi_cfg_start_provisioning()` (e.g., on a button press or GPIO event). Use this when you have a physical provisioning trigger.
+
+## Starting and Stopping Provisioning from the Application
+
+```c
+esp_err_t wifi_cfg_start_provisioning(void);
+esp_err_t wifi_cfg_stop_provisioning(void);
+```
+
+`wifi_cfg_start_provisioning()` starts every enabled provisioning interface — the SoftAP if `enable_ap`, the BLE interface and Improv if compiled in, and the HTTP provisioning handlers — exactly as the automatic modes do, so `stop_provisioning_on_connect` and `provisioning_teardown_delay_ms` apply. It works in any mode, and it is how to re-provision after `wifi_cfg_factory_reset()` without a restart:
+
+```c
+// "Forget WiFi" button
+wifi_cfg_disconnect();
+wifi_cfg_factory_reset();
+wifi_cfg_start_provisioning();
+```
+
+Both calls are asynchronous: they return once the request is queued, and `WIFI_CFG_EVENT_PROVISIONING_STARTED` / `_STOPPED` mark completion. Either one cancels a pending teardown delay.
+
+:::caution `wifi_cfg_start_ap()` is not provisioning
+An AP started with `wifi_cfg_start_ap()` belongs to the application. It is not part of a provisioning session, so `stop_provisioning_on_connect` never stops it; stop it yourself with `wifi_cfg_stop_ap()`. Before `wifi_cfg_start_provisioning()` existed, `wifi_cfg_start_ap()` was the documented MANUAL trigger — code that relied on the AP going away after re-provisioning should switch.
+:::
 
 ## Configuration Example
 

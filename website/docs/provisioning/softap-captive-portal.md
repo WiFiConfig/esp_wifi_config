@@ -52,7 +52,13 @@ and a DHCP range of `"192.168.4.2"`–`"192.168.4.20"`.
 
 ## Starting AP Manually
 
-In `WIFI_PROV_MANUAL` mode, start the AP from your application code:
+In `WIFI_PROV_MANUAL` mode (or to re-provision after `wifi_cfg_factory_reset()`), start provisioning — which brings the AP up when `enable_ap` is set and tears it down per `stop_provisioning_on_connect`:
+
+```c
+wifi_cfg_start_provisioning();
+```
+
+To run the AP for your own purposes instead, start it directly. An AP started this way belongs to the application: the provisioning lifecycle never stops it.
 
 ```c
 // Start with default config (from wifi_cfg_config_t)

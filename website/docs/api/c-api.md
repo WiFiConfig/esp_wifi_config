@@ -125,6 +125,28 @@ esp_err_t wifi_cfg_set_ap_config(const wifi_cfg_ap_config_t *config);
 `wifi_cfg_start_ap()` takes a config for one run; `wifi_cfg_set_ap_config()`
 stores one. Use the setter when the change should outlive a reboot.
 
+An AP started with `wifi_cfg_start_ap()` belongs to the application and is
+not stopped by `stop_provisioning_on_connect`. To bring it up as part of
+provisioning, use `wifi_cfg_start_provisioning()` below.
+
+## Provisioning
+
+```c
+// Start every enabled provisioning interface (SoftAP if enable_ap, BLE,
+// Improv, HTTP provisioning handlers). Subject to stop_provisioning_on_connect.
+esp_err_t wifi_cfg_start_provisioning(void);
+
+// Stop them all and apply http_post_prov_mode
+esp_err_t wifi_cfg_stop_provisioning(void);
+```
+
+Both are asynchronous (the work runs on the library's task; watch
+`WIFI_CFG_EVENT_PROVISIONING_STARTED` / `_STOPPED`), both cancel a pending
+`provisioning_teardown_delay_ms` teardown, and both return
+`ESP_ERR_INVALID_STATE` before `wifi_cfg_init()`. This is the trigger for
+`WIFI_PROV_MANUAL`, and how to re-provision after a factory reset — see
+[Provisioning Modes](../provisioning/modes.md).
+
 ## Custom Variables
 
 ```c
@@ -144,6 +166,9 @@ esp_err_t wifi_cfg_del_var(const char *key);
 // Erase all saved networks, variables, and AP config from NVS
 esp_err_t wifi_cfg_factory_reset(void);
 ```
+
+It does not restart provisioning. Restart the device, or call
+`wifi_cfg_start_provisioning()`.
 
 ## HTTP Server
 

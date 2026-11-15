@@ -96,7 +96,7 @@ static void teardown_timer_callback(TimerHandle_t timer)
 // Provisioning Orchestration
 // =============================================================================
 
-void wifi_cfg_start_provisioning(void)
+void wifi_cfg_prov_orchestrate_start(void)
 {
     if (!g_wifi_cfg || g_wifi_cfg->provisioning_active) return;
 
@@ -149,7 +149,7 @@ void wifi_cfg_start_provisioning(void)
     wifi_cfg_event_post(WIFI_CFG_EVENT_PROVISIONING_STARTED, NULL, 0);
 }
 
-void wifi_cfg_stop_provisioning(void)
+void wifi_cfg_prov_orchestrate_stop(void)
 {
     if (!g_wifi_cfg || !g_wifi_cfg->provisioning_active) return;
 
@@ -487,7 +487,7 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
 #endif
 
     // Init HTTP interface (server setup only, handlers are registered later by
-    // wifi_cfg_start_provisioning() or the happy-path connect logic)
+    // wifi_cfg_prov_orchestrate_start() or the happy-path connect logic)
 #if WIFI_CFG_SOFTAP
     bool need_http = (config && config->enable_ap) ||
                      (config && config->http_post_prov_mode != WIFI_HTTP_DISABLED) ||
@@ -530,7 +530,7 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
 #endif
 
     // Init Network Provisioning event handler / state (manager itself is
-    // started lazily inside wifi_cfg_start_provisioning -> wifi_cfg_prov_start)
+    // started lazily inside wifi_cfg_prov_orchestrate_start -> wifi_cfg_prov_start)
 #ifdef CONFIG_WIFI_CFG_ENABLE_NETWORK_PROVISIONING
     ret = wifi_cfg_prov_init();
     if (ret != ESP_OK) {
@@ -813,7 +813,7 @@ static void wifi_cfg_task(void *arg)
                     switch (g_wifi_cfg->config.provisioning_mode) {
                         case WIFI_PROV_ALWAYS:
                             // WIFI_PROV_ALWAYS is currently disabled:
-                            // wifi_cfg_start_provisioning() eventually calls
+                            // wifi_cfg_prov_orchestrate_start() eventually calls
                             // wifi_prov_mgr_start_provisioning(), which calls
                             // nimble_port_init(). If the application has already
                             // initialized the BLE stack, that call fails. Revisit
@@ -824,7 +824,7 @@ static void wifi_cfg_task(void *arg)
                             ESP_LOGW(TAG, "WIFI_PROV_ALWAYS is disabled (BLE stack conflict); "
                                           "treating as WIFI_PROV_MANUAL");
 #if 0
-                            wifi_cfg_start_provisioning();
+                            wifi_cfg_prov_orchestrate_start();
 #endif
                             if (g_wifi_cfg->network_count > 0) {
                                 wifi_cfg_start_connect_sequence();
@@ -834,7 +834,7 @@ static void wifi_cfg_task(void *arg)
                         case WIFI_PROV_ON_FAILURE:
                         case WIFI_PROV_WHEN_UNPROVISIONED:
                             if (g_wifi_cfg->network_count == 0) {
-                                wifi_cfg_start_provisioning();
+                                wifi_cfg_prov_orchestrate_start();
                             } else {
                                 wifi_cfg_start_connect_sequence();
                             }
@@ -930,7 +930,7 @@ static void wifi_cfg_task(void *arg)
                             }
 
                             // WIFI_ON_RECONNECT_EXHAUSTED_PROVISION is currently disabled:
-                            // wifi_cfg_start_provisioning() eventually calls
+                            // wifi_cfg_prov_orchestrate_start() eventually calls
                             // wifi_prov_mgr_start_provisioning(), which calls
                             // nimble_port_init(). If the application has already
                             // initialized the BLE stack, that call fails. Revisit
@@ -944,11 +944,9 @@ static void wifi_cfg_task(void *arg)
                             g_wifi_cfg->reconnect_attempt_count = 0;
 #if 0
                             // Original behavior preserved for future re-enable.
-                            // Re-enabling this also means restoring
-                            // WM_INT_EVT_START_PROVISIONING to
-                            // wifi_cfg_internal_evt_t and its arm in the task
-                            // switch below -- both were removed as dead code
-                            // once this path was disabled.
+                            // WM_INT_EVT_START_PROVISIONING is back (the public
+                            // wifi_cfg_start_provisioning() posts it), so
+                            // removing the #if is all re-enabling takes.
                             g_wifi_cfg->retry_count = 0;
                             wifi_cfg_send_event(WM_INT_EVT_START_PROVISIONING);
                             break;
@@ -1008,7 +1006,7 @@ static void wifi_cfg_task(void *arg)
                             ESP_LOGI(TAG, "Provisioning teardown in %lu ms",
                                      (unsigned long)g_wifi_cfg->config.provisioning_teardown_delay_ms);
                         } else {
-                            wifi_cfg_stop_provisioning();
+                            wifi_cfg_prov_orchestrate_stop();
                         }
                     }
 
@@ -1063,7 +1061,23 @@ static void wifi_cfg_task(void *arg)
                     
                 case WM_INT_EVT_TEARDOWN_TIMER:
                     ESP_LOGI(TAG, "Teardown timer expired");
-                    wifi_cfg_stop_provisioning();
+                    wifi_cfg_prov_orchestrate_stop();
+                    break;
+
+                case WM_INT_EVT_START_PROVISIONING:
+                case WM_INT_EVT_STOP_PROVISIONING:
+                    // An explicit request from the application supersedes a
+                    // teardown scheduled by stop_provisioning_on_connect:
+                    // either it is about to happen now anyway, or the app
+                    // has just asked for provisioning to stay up.
+                    if (g_wifi_cfg->teardown_timer) {
+                        xTimerStop(g_wifi_cfg->teardown_timer, 0);
+                    }
+                    if (evt.type == WM_INT_EVT_START_PROVISIONING) {
+                        wifi_cfg_prov_orchestrate_start();
+                    } else {
+                        wifi_cfg_prov_orchestrate_stop();
+                    }
                     break;
 
                 case WM_INT_EVT_PROV_BLE_RESTART:
@@ -1197,6 +1211,34 @@ esp_err_t wifi_cfg_get_status(wifi_status_t *status)
 httpd_handle_t wifi_cfg_get_httpd(void)
 {
     return g_wifi_cfg ? g_wifi_cfg->httpd : NULL;
+}
+
+// =============================================================================
+// Provisioning API
+// =============================================================================
+
+// Both run the orchestration on the manager task, like every other state
+// change: the AP/BLE/HTTP bring-up is not safe to race against the lifecycle
+// code that runs there (GOT_IP teardown, AP reassert, BLE restart).
+static esp_err_t post_provisioning_request(wifi_cfg_internal_evt_t type)
+{
+    if (!g_wifi_cfg || wifi_cfg_stopping()) return ESP_ERR_INVALID_STATE;
+    wifi_cfg_internal_msg_t evt = { .type = type };
+    if (xQueueSend(g_wifi_cfg->queue, &evt, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "Manager queue full; provisioning request dropped");
+        return ESP_ERR_TIMEOUT;
+    }
+    return ESP_OK;
+}
+
+esp_err_t wifi_cfg_start_provisioning(void)
+{
+    return post_provisioning_request(WM_INT_EVT_START_PROVISIONING);
+}
+
+esp_err_t wifi_cfg_stop_provisioning(void)
+{
+    return post_provisioning_request(WM_INT_EVT_STOP_PROVISIONING);
 }
 
 esp_err_t wifi_cfg_factory_reset(void)
