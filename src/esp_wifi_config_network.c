@@ -31,6 +31,24 @@ static void sort_networks_by_priority(void)
 }
 
 /**
+ * @brief Build the STA config for one saved network
+ *
+ * `sta.threshold.authmode` left at zero lets ESP-IDF demand WPA2 for any
+ * password of 8+ characters, which silently filters out WEP and WPA(v1)
+ * routers. `sta_min_auth_mode` is the application's opt-in to lower (or
+ * raise) that floor; an open network keeps the OPEN threshold regardless.
+ */
+static void fill_sta_config(wifi_config_t *wifi_cfg, const wifi_network_t *net)
+{
+    memset(wifi_cfg, 0, sizeof(*wifi_cfg));
+    strncpy((char *)wifi_cfg->sta.ssid, net->ssid, sizeof(wifi_cfg->sta.ssid) - 1);
+    strncpy((char *)wifi_cfg->sta.password, net->password, sizeof(wifi_cfg->sta.password) - 1);
+    if (net->password[0] != '\0') {
+        wifi_cfg->sta.threshold.authmode = g_wifi_cfg->config.sta_min_auth_mode;
+    }
+}
+
+/**
  * @brief Calculate exponential backoff delay
  * @param retry Current retry number (0-based)
  * @return Delay in milliseconds
@@ -88,9 +106,8 @@ void wifi_cfg_start_connect_sequence(void)
         g_wifi_cfg->current_network_idx = i;
         wifi_cfg_event_post(WIFI_CFG_EVENT_CONNECTING, net->ssid, strlen(net->ssid) + 1);
 
-        wifi_config_t wifi_cfg = {0};
-        strncpy((char *)wifi_cfg.sta.ssid, net->ssid, sizeof(wifi_cfg.sta.ssid) - 1);
-        strncpy((char *)wifi_cfg.sta.password, net->password, sizeof(wifi_cfg.sta.password) - 1);
+        wifi_config_t wifi_cfg;
+        fill_sta_config(&wifi_cfg, net);
 
         esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
 
@@ -307,9 +324,8 @@ esp_err_t wifi_cfg_connect(const char *ssid)
     g_wifi_cfg->state = WIFI_STATE_CONNECTING;
     wifi_cfg_event_post(WIFI_CFG_EVENT_CONNECTING, ssid, strlen(ssid) + 1);
     
-    wifi_config_t wifi_cfg = {0};
-    strncpy((char *)wifi_cfg.sta.ssid, net->ssid, sizeof(wifi_cfg.sta.ssid) - 1);
-    strncpy((char *)wifi_cfg.sta.password, net->password, sizeof(wifi_cfg.sta.password) - 1);
+    wifi_config_t wifi_cfg;
+    fill_sta_config(&wifi_cfg, net);
     
     esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
     return esp_wifi_connect();

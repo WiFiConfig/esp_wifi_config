@@ -893,6 +893,28 @@ typedef struct {
     /// consulted when `max_reconnect_attempts` is non-zero.
     wifi_reconnect_exhausted_action_t on_reconnect_exhausted;
 
+    // Station security
+    /// Weakest AP security the station will join, for networks saved with a
+    /// password. Default (zero) = WIFI_AUTH_OPEN, which leaves ESP-IDF's own
+    /// rule in place: a password of 8 or more characters demands WPA2-PSK or
+    /// better, so WEP and WPA(v1)-only routers are never joined (disconnect
+    /// reason 211, NO_AP_FOUND_IN_AUTHMODE_THRESHOLD). Set WIFI_AUTH_WPA_PSK
+    /// to also accept WPA(v1), or WIFI_AUTH_WEP to accept WEP as well. Any
+    /// other value is passed through as `sta.threshold.authmode`, so
+    /// WIFI_AUTH_WPA3_PSK raises the floor instead. Networks without a
+    /// password always connect with an OPEN threshold.
+    ///
+    /// @warning Lowering the floor weakens downgrade protection: a rogue AP
+    /// advertising the same SSID with WEP or WPA(v1) becomes joinable. Opt in
+    /// only for devices that must reach legacy routers.
+    ///
+    /// @note Applies to connections this library makes (the saved-network
+    /// sequence and wifi_cfg_connect(), which covers SoftAP, Improv and CLI
+    /// provisioning). The first connect the ESP-IDF provisioning manager
+    /// makes during BLE provisioning uses its own STA config and is not
+    /// covered; later reconnects to that network are.
+    wifi_auth_mode_t sta_min_auth_mode;
+
     // Provisioning lifecycle
     /// Controls when provisioning interfaces (AP/BLE) start. Defaults to
     /// WIFI_PROV_ON_FAILURE, which is the zero value: start when unprovisioned

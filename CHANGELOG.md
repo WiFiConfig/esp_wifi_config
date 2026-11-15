@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- `wifi_cfg_config_t.sta_min_auth_mode`: opt-in to joining WEP and WPA(v1)
+  networks (#6). Left at zero (the default) nothing changes: ESP-IDF demands
+  WPA2 or better for any password of 8+ characters, so such routers are
+  skipped with disconnect reason 211. `WIFI_AUTH_WPA_PSK` allows WPA(v1),
+  `WIFI_AUTH_WEP` allows WEP too; open networks are unaffected. Lowering it
+  weakens downgrade protection, and the first connect made by the BLE
+  provisioning manager is not covered. `wifi_cfg_init()` rejects
+  out-of-range values.
+
 ## [0.4.1] — 2026-09-19 - BLE credential persistence
 
 ### Fixed

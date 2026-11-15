@@ -309,6 +309,21 @@ esp_err_t wifi_cfg_init(const wifi_cfg_config_t *config)
                  g_wifi_cfg->config.enable_ap ? " and wifi_cfg_stop_http() will be refused" : "");
     }
 
+    // Passed straight through as sta.threshold.authmode, so an out-of-range
+    // value would reach the driver; refuse it here instead.
+    if ((unsigned)g_wifi_cfg->config.sta_min_auth_mode >= WIFI_AUTH_MAX) {
+        ESP_LOGE(TAG, "sta_min_auth_mode %d is not a wifi_auth_mode_t",
+                 (int)g_wifi_cfg->config.sta_min_auth_mode);
+        ret = ESP_ERR_INVALID_ARG;
+        goto cleanup;
+    }
+    if (g_wifi_cfg->config.sta_min_auth_mode == WIFI_AUTH_WEP ||
+        g_wifi_cfg->config.sta_min_auth_mode == WIFI_AUTH_WPA_PSK) {
+        ESP_LOGW(TAG, "sta_min_auth_mode allows %s networks: downgrade "
+                      "protection for saved networks is weakened",
+                 g_wifi_cfg->config.sta_min_auth_mode == WIFI_AUTH_WEP ? "WEP and WPA(v1)" : "WPA(v1)");
+    }
+
     // Validate provisioning config (e.g. Security 2 needs salt+verifier).
     // Fail at boot rather than at provisioning time so the developer sees
     // the error during initial integration.

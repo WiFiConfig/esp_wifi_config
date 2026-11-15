@@ -223,6 +223,13 @@ wifi_cfg_config_t config = {
     // _PROVISION is currently disabled (treated as infinite retry).
     .max_reconnect_attempts = 10,          // 0 = infinite (the default)
 
+    // Weakest security a password-protected network may use. Zero (the
+    // default) keeps ESP-IDF's WPA2 minimum for passwords of 8+ chars;
+    // WIFI_AUTH_WPA_PSK / WIFI_AUTH_WEP opt in to legacy routers and weaken
+    // downgrade protection. Not applied to the BLE provisioning manager's
+    // own first connect. Uncomment only for devices that need it:
+    // .sta_min_auth_mode = WIFI_AUTH_WPA_PSK,
+
     // HTTP post-provisioning mode (the macro sets WIFI_HTTP_FULL)
     .http_post_prov_mode = WIFI_HTTP_API_ONLY,
 
