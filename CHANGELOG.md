@@ -28,6 +28,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   weakens downgrade protection, and the first connect made by the BLE
   provisioning manager is not covered. `wifi_cfg_init()` rejects
   out-of-range values.
+- ESP32-C5 support. `esp32c5` is a component target, and Improv device info
+  and the BLE provisioning version string report the chip. Scans on the C5
+  wait up to 25 s instead of 10 s, since an all-band scan can spend that long
+  on passive 5 GHz/DFS channels. On ESP-IDF before 5.5 with BLE provisioning
+  compiled in, a C5 scan cannot finish 5 GHz while Bluetooth is running
+  (Espressif IDFGH-15407): while BLE is active, `wifi_cfg_scan()` and the BLE
+  provisioning session limit the radio to 2.4 GHz and restore the
+  application's band mode afterwards, and the build prints a warning. 5 GHz
+  networks entered by hand still connect. ESP-IDF 5.5+ scans both bands.
 
 ### Fixed
 
@@ -46,6 +55,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   now answers with the current state and, once provisioned, an RPC result
   carrying the device URL, and leaves the error state as it is. BLE's 0x02 is
   unchanged.
+- A Wi-Fi scan that timed out was left running, so its late scan-done event
+  could arrive during the next scan and end that request's wait early. A
+  timed-out scan is now stopped.
 
 ## [0.4.1] — 2026-09-19 - BLE credential persistence
 

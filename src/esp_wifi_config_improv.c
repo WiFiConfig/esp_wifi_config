@@ -292,6 +292,7 @@ static void handle_get_device_info(improv_response_cb_t cb)
         case CHIP_ESP32S2: chip_variant = "ESP32-S2"; break;
         case CHIP_ESP32S3: chip_variant = "ESP32-S3"; break;
         case CHIP_ESP32C3: chip_variant = "ESP32-C3"; break;
+        case CHIP_ESP32C5: chip_variant = "ESP32-C5"; break;
         case CHIP_ESP32H2: chip_variant = "ESP32-H2"; break;
         case CHIP_ESP32C6: chip_variant = "ESP32-C6"; break;
         default:           chip_variant = "ESP32";    break;

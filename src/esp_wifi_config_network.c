@@ -9,6 +9,19 @@
 
 static const char *TAG = "wifi_cfg_net";
 
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+#warning "esp_wifi_config: ESP32-C5 BLE + 5 GHz scans can time out on ESP-IDF <5.5.0 (IDFGH-15407); BLE-time scans will be limited to 2.4 GHz. Upgrade to ESP-IDF 5.5.0+ for dual-band BLE provisioning scans."
+#endif
+
+#if CONFIG_IDF_TARGET_ESP32C5
+// An all-band C5 scan can spend more than ten seconds on passive 5 GHz/DFS
+// channels. Keep the usual bound on the single-band targets while allowing
+// the C5 scan-done event enough time to arrive.
+#define WIFI_CFG_SCAN_TIMEOUT_MS 25000
+#else
+#define WIFI_CFG_SCAN_TIMEOUT_MS 10000
+#endif
+
 // =============================================================================
 // Connection Logic (runs in task context)
 // =============================================================================
@@ -349,6 +362,32 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
 
     ESP_LOGI(TAG, "Starting scan");
 
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+    /*
+     * ESP32-C5 cannot complete the 5 GHz part of an all-band Wi-Fi scan while
+     * Bluetooth is running (Espressif IDFGH-15407). Both BLE provisioning
+     * transports invoke this function from an active GATT connection, so the
+     * failure also prevents the response from reaching the client. Restrict
+     * only that scan to 2.4 GHz and restore the application's band mode after
+     * collecting the results. A manually entered 5 GHz network remains usable
+     * once the original AUTO/5G mode is restored.
+     */
+    wifi_band_mode_t saved_band_mode = WIFI_BAND_MODE_2G_ONLY;
+    bool restore_band_mode = false;
+    if (g_wifi_cfg->ble_active &&
+        esp_wifi_get_band_mode(&saved_band_mode) == ESP_OK &&
+        saved_band_mode != WIFI_BAND_MODE_2G_ONLY) {
+        esp_err_t band_err = esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
+        if (band_err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to select 2.4 GHz for C5 BLE scan: %s",
+                     esp_err_to_name(band_err));
+            return band_err;
+        }
+        restore_band_mode = true;
+        ESP_LOGW(TAG, "C5 BLE scan limited to 2.4 GHz (IDFGH-15407 workaround)");
+    }
+#endif
+
     // Stop connection attempt if in progress (scan not allowed while connecting)
     if (g_wifi_cfg->connecting || g_wifi_cfg->state == WIFI_STATE_CONNECTING) {
         ESP_LOGI(TAG, "Stopping connection for scan");
@@ -364,20 +403,33 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
     };
 
     esp_err_t ret = esp_wifi_scan_start(&scan_cfg, false);
-    if (ret != ESP_OK) return ret;
+    if (ret != ESP_OK) {
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+        if (restore_band_mode) esp_wifi_set_band_mode(saved_band_mode);
+#endif
+        return ret;
+    }
     
     EventBits_t bits = xEventGroupWaitBits(g_wifi_cfg->event_group,
                                            WIFI_SCAN_DONE_BIT | WIFI_STOPPING_BIT,
                                            pdFALSE, pdFALSE,
-                                           pdMS_TO_TICKS(10000));
+                                           pdMS_TO_TICKS(WIFI_CFG_SCAN_TIMEOUT_MS));
     
     if (bits & WIFI_STOPPING_BIT) {
         esp_wifi_scan_stop();
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+        if (restore_band_mode) esp_wifi_set_band_mode(saved_band_mode);
+#endif
         return ESP_ERR_INVALID_STATE;
     }
     xEventGroupClearBits(g_wifi_cfg->event_group, WIFI_SCAN_DONE_BIT);
 
     if (!(bits & WIFI_SCAN_DONE_BIT)) {
+        // A late scan-done event must not leak into the next request.
+        esp_wifi_scan_stop();
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+        if (restore_band_mode) esp_wifi_set_band_mode(saved_band_mode);
+#endif
         return ESP_ERR_TIMEOUT;
     }
     
@@ -385,7 +437,12 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
     esp_wifi_scan_get_ap_num(&ap_count);
     
     wifi_ap_record_t *ap_list = calloc(ap_count, sizeof(wifi_ap_record_t));
-    if (!ap_list) return ESP_ERR_NO_MEM;
+    if (!ap_list) {
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+        if (restore_band_mode) esp_wifi_set_band_mode(saved_band_mode);
+#endif
+        return ESP_ERR_NO_MEM;
+    }
     
     esp_wifi_scan_get_ap_records(&ap_count, ap_list);
     
@@ -419,6 +476,17 @@ esp_err_t wifi_cfg_scan(wifi_scan_result_t *results, size_t max_count, size_t *c
 
     *count = copy_count;
     free(ap_list);
+
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+    if (restore_band_mode) {
+        esp_err_t band_err = esp_wifi_set_band_mode(saved_band_mode);
+        if (band_err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to restore C5 Wi-Fi band mode: %s",
+                     esp_err_to_name(band_err));
+            return band_err;
+        }
+    }
+#endif
     
     uint16_t cnt = (uint16_t)copy_count;
     wifi_cfg_event_post(WIFI_CFG_EVENT_SCAN_DONE, &cnt, sizeof(cnt));

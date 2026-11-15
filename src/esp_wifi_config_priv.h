@@ -7,6 +7,7 @@
 
 #include "esp_wifi_config.h"
 #include "esp_wifi_config_platform.h"
+#include "esp_idf_version.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_event.h"
@@ -89,6 +90,17 @@ extern "C" {
 // lifecycle to decide whether to start/stop a BLE provisioning interface.
 #if defined(CONFIG_WIFI_CFG_ENABLE_IMPROV_BLE) || defined(CONFIG_WIFI_CFG_NETWORK_PROVISIONING_BLE)
 #define WIFI_CFG_HAS_BLE_PROVISIONING 1
+#endif
+
+/* ESP-IDF before 5.5 can time out when ESP32-C5 scans 5 GHz channels while
+ * Bluetooth is active (IDFGH-15407). Keep the compatibility behavior in one
+ * compile-time predicate so fixed SDKs retain full dual-band scanning. */
+#if defined(CONFIG_IDF_TARGET_ESP32C5) && \
+    ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0) && \
+    defined(WIFI_CFG_HAS_BLE_PROVISIONING)
+#define WIFI_CFG_C5_BLE_SCAN_WORKAROUND 1
+#else
+#define WIFI_CFG_C5_BLE_SCAN_WORKAROUND 0
 #endif
 
 /* WIFI_CFG_DEFAULT_AP_* now live in the public header: WIFI_CFG_DEFAULTS

@@ -175,6 +175,10 @@ static bool s_prov_initialized = false;     // wifi_prov_mgr_init has been calle
 static bool s_prov_active      = false;     // wifi_prov_mgr_start_provisioning succeeded
 static int  s_failed_attempts  = 0;         // counted across CRED_FAIL events
 static bool s_coex_pref_set    = false;     // tracks whether we biased coex toward BT
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+static bool             s_c5_band_mode_limited = false;
+static wifi_band_mode_t s_c5_saved_band_mode;
+#endif
 /* Credentials are only durable after the provisioning manager reports that
  * they connected successfully. Persisting at CRED_RECV made a typo or an
  * unavailable SSID part of the reconnect list before it had been validated. */
@@ -323,6 +327,7 @@ static const char *chip_variant_str(void)
         case CHIP_ESP32S2: return "esp32s2";
         case CHIP_ESP32S3: return "esp32s3";
         case CHIP_ESP32C3: return "esp32c3";
+        case CHIP_ESP32C5: return "esp32c5";
         case CHIP_ESP32C6: return "esp32c6";
         case CHIP_ESP32H2: return "esp32h2";
         default:           return "unknown";
@@ -775,6 +780,46 @@ static void restore_coex(void)
     }
 }
 
+// ESP32-C5 all-band scans do not complete while Bluetooth is active
+// (Espressif IDFGH-15407). The provisioning manager owns its prov-scan
+// handler, so the library cannot bracket that scan directly. Limit the radio
+// to 2.4 GHz while the BLE provisioning service is running, then restore the
+// application's original band mode on every stop/error path.
+static esp_err_t limit_c5_prov_scan_band(void)
+{
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+    if (s_c5_band_mode_limited) return ESP_OK;
+
+    wifi_band_mode_t band_mode;
+    esp_err_t err = esp_wifi_get_band_mode(&band_mode);
+    if (err != ESP_OK) return err;
+    if (band_mode == WIFI_BAND_MODE_2G_ONLY) return ESP_OK;
+
+    err = esp_wifi_set_band_mode(WIFI_BAND_MODE_2G_ONLY);
+    if (err != ESP_OK) return err;
+
+    s_c5_saved_band_mode = band_mode;
+    s_c5_band_mode_limited = true;
+    ESP_LOGW(TAG, "C5 BLE provisioning scans limited to 2.4 GHz (IDFGH-15407 workaround)");
+#endif
+    return ESP_OK;
+}
+
+static void restore_c5_prov_scan_band(void)
+{
+#if WIFI_CFG_C5_BLE_SCAN_WORKAROUND
+    if (!s_c5_band_mode_limited) return;
+
+    esp_err_t err = esp_wifi_set_band_mode(s_c5_saved_band_mode);
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "restored C5 Wi-Fi band mode after BLE provisioning");
+    } else {
+        ESP_LOGE(TAG, "failed to restore C5 Wi-Fi band mode: %s", esp_err_to_name(err));
+    }
+    s_c5_band_mode_limited = false;
+#endif
+}
+
 // =============================================================================
 // Provisioning event handler
 // =============================================================================
@@ -921,6 +966,7 @@ static void prov_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
             // The BLE link is no longer load-bearing here — restore balanced
             // arbitration so post-provisioning Wi-Fi throughput isn't penalised.
             restore_coex();
+            restore_c5_prov_scan_band();
             // BLE disconnect workaround: if the manager was torn down because
             // a client dropped mid-flow, re-arm it now that protocomm is
             // fully shut down. Defer to wifi_cfg_task so the heavy MGR_INIT
@@ -1033,8 +1079,10 @@ esp_err_t wifi_cfg_prov_deinit(void)
     }
 #endif
     // Force-teardown path: WIFI_PROV_EVT_END may not get a chance to run, so
-    // restore coex here too. No-op if already restored by the event handler.
+    // restore radio policy here too. No-op if already restored by the event
+    // handler.
     restore_coex();
+    restore_c5_prov_scan_band();
     // Reset workaround state so a later init+start session begins clean.
     s_creds_received  = false;
     s_explicit_stop   = false;
@@ -1177,6 +1225,15 @@ esp_err_t wifi_cfg_prov_start(void)
     wifi_cfg_expand_template(resolve_device_name_template(),
                              device_name, sizeof(device_name));
 
+    err = limit_c5_prov_scan_band();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "failed to select C5 provisioning scan band: %s",
+                 esp_err_to_name(err));
+        WIFI_PROV_MGR_DEINIT();
+        s_prov_initialized = false;
+        return err;
+    }
+
     // Bias Wi-Fi/BT coexistence toward BT for the duration of provisioning.
     // The iOS "ESP BLE Provisioning" app drives a full-channel active Wi-Fi
     // scan over the prov-scan endpoint; with balanced coex on the single
@@ -1203,6 +1260,7 @@ esp_err_t wifi_cfg_prov_start(void)
         WIFI_PROV_MGR_DEINIT();
         s_prov_initialized = false;
         restore_coex();
+        restore_c5_prov_scan_band();
         return err;
     }
 
